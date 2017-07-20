@@ -17,7 +17,6 @@ public:
 	// ------------------------------------------------------------------------
 	Shader(const char* vertexPath, const char* fragmentPath)
 	{
-		printf("costruttore"); 
 		// 1. retrieve the vertex/fragment source code from filePath
 		std::string vertexCode;
 		std::string fragmentCode;
@@ -29,9 +28,7 @@ public:
 		try
 		{
 			// open files
-			printf("non ho ancora aperto il vertex shader con successo");
 			vShaderFile.open(vertexPath);
-			printf("ho aperto il vertex shader con successo"); 
 			fShaderFile.open(fragmentPath);
 			std::stringstream vShaderStream, fShaderStream;
 			// read file's buffer contents into streams

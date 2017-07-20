@@ -1,9 +1,12 @@
-#version 330 core
-layout (location = 0) in vec2 a_position;
-out vec2 surfacePosition;
-uniform vec2 screenRatio;
+#version 330
 
-void main() {
-   surfacePosition = a_position*screenRatio;
-   gl_Position = vec4(a_position, 0, 1);
+layout(location = 0)in vec4 vert;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+
+void main()
+{
+    gl_Position = projection * view * model * vert;
 }

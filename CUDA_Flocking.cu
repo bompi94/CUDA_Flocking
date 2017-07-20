@@ -237,6 +237,9 @@ bool initGL(int *argc, char **argv)
 
 	SDK_CHECK_ERROR_GL();
 
+	Shader shader("basic.vert", "basic.frag");
+	shader.use(); 
+
 	return true;
 }
 
