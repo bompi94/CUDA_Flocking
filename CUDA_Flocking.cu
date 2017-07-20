@@ -233,7 +233,6 @@ bool initGL(int *argc, char **argv)
 	// projection
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(60.0, (GLfloat)window_width / (GLfloat)window_height, 0.1, 10.0);
 
 	SDK_CHECK_ERROR_GL();
 
@@ -351,17 +350,30 @@ void runAutoTest(int devID, char **argv, char *ref_file)
 void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
 	unsigned int vbo_res_flags)
 {
+	//vertices of a triangle
+	float vertices[] = {
+		-0.5f, -0.5f, 0.0f,
+		0.5f, -0.5f, 0.0f,
+		0.0f,  0.5f, 0.0f
+	};
+
 	assert(vbo);
 
 	// create buffer object
 	glGenBuffers(1, vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 
+	//unsigned int VAO;
+	//glGenVertexArrays(1, &VAO);
+	//glBindVertexArray(VAO);
+
 	// initialize buffer object
 	unsigned int size = mesh_width * mesh_height * 4 * sizeof(float);
-	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
-
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	//glEnableVertexAttribArray(0);
 
 	// register this buffer object with CUDA
 	checkCudaErrors(cudaGraphicsGLRegisterBuffer(vbo_res, *vbo, vbo_res_flags));
