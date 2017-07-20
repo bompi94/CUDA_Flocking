@@ -116,6 +116,9 @@
   <ItemGroup>
     <CudaCompile Include="CUDA_Flocking.cu" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="shader.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(CUDAPropsPath)\CUDA 8.0.targets" />

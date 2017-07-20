@@ -41,6 +41,7 @@
 // OpenGL Graphics includes
 #include <helper_gl.h>
 #include <GL/freeglut.h>
+#include <shader.h>
 
 
 // includes, cuda
@@ -96,6 +97,8 @@ bool g_bQAReadback = false;
 
 int *pArgc = NULL;
 char **pArgv = NULL;
+
+
 
 #define MAX(a,b) ((a > b) ? a : b)
 
