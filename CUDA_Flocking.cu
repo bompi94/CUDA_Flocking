@@ -76,6 +76,9 @@ GLuint vbo;
 struct cudaGraphicsResource *cuda_vbo_resource;
 void *d_vbo_buffer = NULL;
 
+//vao variables
+unsigned int VAO;
+
 float g_fAnim = 0.0;
 
 // mouse controls
@@ -362,18 +365,15 @@ void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
 	// create buffer object
 	glGenBuffers(1, vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-
-	//unsigned int VAO;
-	//glGenVertexArrays(1, &VAO);
-	//glBindVertexArray(VAO);
-
-	// initialize buffer object
-	unsigned int size = mesh_width * mesh_height * 4 * sizeof(float);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	//glEnableVertexAttribArray(0);
+	//create vao
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
 	// register this buffer object with CUDA
 	checkCudaErrors(cudaGraphicsGLRegisterBuffer(vbo_res, *vbo, vbo_res_flags));
@@ -404,29 +404,14 @@ void display()
 	sdkStartTimer(&timer);
 
 	// run CUDA kernel to generate vertex positions
-	runCuda(&cuda_vbo_resource);
+	//runCuda(&cuda_vbo_resource);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// set view matrix
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	glTranslatef(0.0, 0.0, translate_z);
-	glRotatef(rotate_x, 1.0, 0.0, 0.0);
-	glRotatef(rotate_y, 0.0, 1.0, 0.0);
-
-	// render from the vbo
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glVertexPointer(4, GL_FLOAT, 0, 0);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glColor3f(1.0, 0.0, 0.0);
-	glDrawArrays(GL_POINTS, 0, mesh_width * mesh_height);
-	glDisableClientState(GL_VERTEX_ARRAY);
+	glBindVertexArray(VAO);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 	glutSwapBuffers();
-
-	g_fAnim += 0.01f;
 
 	sdkStopTimer(&timer);
 	computeFPS();
