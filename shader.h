@@ -94,6 +94,14 @@ public:
 		glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
 	}
 
+	void setVec2(const std::string &name, float2 value)const
+	{
+		float x[2]; 
+		x[0] = value.x; 
+		x[1] = value.y; 
+		glUniform2fv(glGetUniformLocation(ID, name.c_str()),2,x); 
+	}
+
 private:
 	// utility function for checking shader compilation/linking errors.
 	// ------------------------------------------------------------------------

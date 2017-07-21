@@ -101,7 +101,9 @@ bool g_bQAReadback = false;
 int *pArgc = NULL;
 char **pArgv = NULL;
 
+float2 translations[100];
 
+Shader* shPointer; 
 
 #define MAX(a,b) ((a > b) ? a : b)
 
@@ -239,8 +241,10 @@ bool initGL(int *argc, char **argv)
 
 	SDK_CHECK_ERROR_GL();
 
-	Shader shader("basic.vert", "basic.frag");
+	Shader shader("shaders/flock.vert", "shaders/flock.frag");
 	shader.use(); 
+	shPointer = (Shader*)malloc(sizeof(Shader)); 
+	shPointer = &shader;
 
 	return true;
 }
@@ -360,20 +364,57 @@ void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
 		0.0f,  0.5f, 0.0f
 	};
 
+	float quadVertices[] = {
+		// positions     // colors
+		-0.05f,  0.05f,  1.0f, 0.0f, 0.0f,
+		0.05f, -0.05f,  0.0f, 1.0f, 0.0f,
+		-0.05f, -0.05f,  0.0f, 0.0f, 1.0f,
+
+		-0.05f,  0.05f,  1.0f, 0.0f, 0.0f,
+		0.05f, -0.05f,  0.0f, 1.0f, 0.0f,
+		0.05f,  0.05f,  0.0f, 1.0f, 1.0f
+	};
+
+	int index = 0;
+	float offset = 0.1f;
+	for (unsigned int y = -10; y < 10; y += 2)
+	{
+		for (unsigned int x = -10; x < 10; x += 2)
+		{
+			float2 translation;
+			translation.x = (float)x / 10.0f + offset;
+			translation.y = (float)y / 10.0f + offset;
+			translations[index++] = translation;
+		}
+	}
+
 	assert(vbo);
 
-	// create buffer object
 	glGenBuffers(1, vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * 100, &translations[0], GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	//create vao
 	glBindVertexArray(VAO);
+	glEnableVertexAttribArray(2);
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glVertexAttribDivisorARB(2, 1); 
+
+	//// create buffer object
+	//glGenBuffers(1, vbo);
+	//glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+	//glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	//glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	////create vao
+
+	//glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+	//glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	//glEnableVertexAttribArray(0);
 
 	// register this buffer object with CUDA
 	checkCudaErrors(cudaGraphicsGLRegisterBuffer(vbo_res, *vbo, vbo_res_flags));
@@ -408,8 +449,18 @@ void display()
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	shPointer->use();
+	for (unsigned int i = 0; i < 100; i++)
+	{
+		std::stringstream ss;
+		std::string index;
+		ss << i;
+		index = ss.str();
+		shPointer->setVec2(("offsets[" + index + "]").c_str(), translations[i]);
+	}
+
 	glBindVertexArray(VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
 
 	glutSwapBuffers();
 
