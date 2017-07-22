@@ -106,7 +106,10 @@ char **pArgv = NULL;
 
 float2 translations[100];
 
-Shader* shPointer; 
+Shader* shPointer;
+
+int movementTime = 5; 
+int timecount = 0; 
 
 
 #define MAX(a,b) ((a > b) ? a : b)
@@ -355,6 +358,30 @@ void runAutoTest(int devID, char **argv, char *ref_file)
 	}
 }
 
+void massMovement(bool random = false)
+{
+	int index = 0;
+	float offset = 0.1f;
+
+	for (int y = -10; y < 10; y += 2)
+	{
+		for (int x = -10; x < 10; x += 2)
+		{
+			float2 translation;
+			if (!random) {
+				translation.x = (float)x / 10.0f + offset;
+				translation.y = (float)y / 10.0f + offset;
+			}
+
+			else {
+				translation.x = (float)x / 10.0f + (rand() % 2 * 2 - 1);
+				translation.y = (float)y / 10.0f + (rand() % 2 * 2 - 1);
+			}
+			translations[index++] = translation;
+		}
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //! Create VBO
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,23 +395,8 @@ void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
 		0.05f, -0.05f,  0.0f, 1.0f, 0.0f,
 		-0.05f, -0.05f,  0.0f, 0.0f, 1.0f
 	};
-
-	int index = 0;
-	float offset = 0.1f;
-
-	for (int y = -10; y < 10; y += 2)
-	{
-		for (int x = -10; x < 10; x += 2)
-		{
-			float2 translation;
-			translation.x = (float)x / 10.0f + offset;
-			translation.y = (float)y / 10.0f + offset;
-			translations[index++] = translation;
-			std::cout << translation.x; 
-		}
-	}
-
 	
+	massMovement(true); 
 
 	assert(vbo);
 
@@ -407,9 +419,7 @@ void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
 	//loading offsets
 	glGenBuffers(1, &instanceVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * 100, &translations[0], GL_STATIC_DRAW);
-
-	glBindVertexArray(VAO); 
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * 100, &translations[0], GL_DYNAMIC_DRAW);
 
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	glEnableVertexAttribArray(2);
@@ -448,6 +458,13 @@ void display()
 	//runCuda(&cuda_vbo_resource);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	timecount++; 
+
+	if (timecount >= movementTime) {
+		createVBO(&vbo, &cuda_vbo_resource, cudaGraphicsMapFlagsWriteDiscard);
+		timecount = 0;
+	}
 
 	glBindVertexArray(VAO);
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
