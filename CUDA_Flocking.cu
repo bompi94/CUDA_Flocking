@@ -136,39 +136,6 @@ void checkResultCuda(int argc, char **argv, const GLuint &vbo);
 
 const char *windowTitle = "CUDA_Flocking (VBO)";
 
-///////////////////////////////////////////////////////////////////////////////
-//! Simple kernel to modify vertex positions in sine wave pattern
-//! @param data  data in global memory
-///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4 *pos, unsigned int width, unsigned int height)
-{
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	// calculate uv coordinates
-	float u = x / (float)width;
-	float v = y / (float)height;
-	u = u*2.0f - 1.0f;
-	v = v*2.0f - 1.0f;
-
-	// calculate simple sine wave pattern
-	float freq = 4.0f;
-	float w = 0;
-
-	// write output vertex
-	pos[y*width + x] = make_float4(u, w, v, 1.0f);
-}
-
-
-void launch_kernel(float4 *pos, unsigned int mesh_width,
-	unsigned int mesh_height)
-{
-	// execute the kernel
-	dim3 block(8, 8, 1);
-	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << < grid, block >> > (pos, mesh_width, mesh_height);
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -301,59 +268,11 @@ void runCuda(struct cudaGraphicsResource **vbo_resource)
 	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes,
 		*vbo_resource));
 
-	launch_kernel(dptr, mesh_width, mesh_height);
-
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
 }
 
-#ifdef _WIN32
-#ifndef FOPEN
-#define FOPEN(fHandle,filename,mode) fopen_s(&fHandle, filename, mode)
-#endif
-#else
-#ifndef FOPEN
-#define FOPEN(fHandle,filename,mode) (fHandle = fopen(filename, mode))
-#endif
-#endif
 
-void sdkDumpBin2(void *data, unsigned int bytes, const char *filename)
-{
-	printf("sdkDumpBin: <%s>\n", filename);
-	FILE *fp;
-	FOPEN(fp, filename, "wb");
-	fwrite(data, bytes, 1, fp);
-	fflush(fp);
-	fclose(fp);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Run the Cuda part of the computation
-////////////////////////////////////////////////////////////////////////////////
-void runAutoTest(int devID, char **argv, char *ref_file)
-{
-	char *reference_file = NULL;
-	void *imageData = malloc(mesh_width*mesh_height * sizeof(float));
-
-	// execute the kernel
-	launch_kernel((float4 *)d_vbo_buffer, mesh_width, mesh_height);
-
-	cudaDeviceSynchronize();
-	getLastCudaError("launch_kernel failed");
-
-	checkCudaErrors(cudaMemcpy(imageData, d_vbo_buffer, mesh_width*mesh_height * sizeof(float), cudaMemcpyDeviceToHost));
-
-	sdkDumpBin2(imageData, mesh_width*mesh_height * sizeof(float), "CUDA_Flocking.bin");
-	reference_file = sdkFindFilePath(ref_file, argv[0]);
-
-	if (reference_file &&
-		!sdkCompareBin2BinFloat("CUDA_Flocking.bin", reference_file,
-			mesh_width*mesh_height * sizeof(float),
-			MAX_EPSILON_ERROR, THRESHOLD, pArgv[0]))
-	{
-		g_TotalErrors++;
-	}
-}
 
 void massMovement(bool random = false)
 {
@@ -458,14 +377,16 @@ void display()
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	timecount++; 
+	glBindVertexArray(VAO);
 
+	timecount++; 
 	if (timecount >= movementTime) {
-		createVBO(&vbo, &cuda_vbo_resource, cudaGraphicsMapFlagsWriteDiscard);
+		massMovement(true); 
+		glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * 100, &translations[0], GL_DYNAMIC_DRAW);
 		timecount = 0;
 	}
 
-	glBindVertexArray(VAO);
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
 
 	glutSwapBuffers();
