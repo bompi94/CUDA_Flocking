@@ -114,7 +114,9 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="CUDA_Flocking.cu" />
+    <CudaCompile Include="CUDA_Flocking.cu">
+      <CodeGeneration Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">compute_20,sm_20;%(CodeGeneration)</CodeGeneration>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shader.h" />

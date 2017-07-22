@@ -118,8 +118,7 @@ void cleanup();
 
 // GL functionality
 bool initGL(int *argc, char **argv);
-void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
-	unsigned int vbo_res_flags);
+void createVBO(GLuint *vbo);
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res);
 
 // rendering callbacks
@@ -129,8 +128,9 @@ void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 void timerEvent(int value);
 
-const char *windowTitle = "CUDA_Flocking";
+void launch_kernel(); 
 
+const char *windowTitle = "CUDA_Flocking";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -158,10 +158,14 @@ int main(int argc, char **argv)
 	glutCloseFunc(cleanup);
 
 	// create VBO
-	createVBO(&vbo, &cuda_vbo_resource, cudaGraphicsMapFlagsWriteDiscard); // il flag indica che CUDA non leggerà dalla risorsa															 
+	createVBO(&vbo);														 
+
+	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, instanceVBO, cudaGraphicsMapFlagsWriteDiscard));
 
 	// start rendering mainloop
 	glutMainLoop();
+
+	checkCudaErrors(cudaGraphicsUnregisterResource(cuda_vbo_resource));
 
 	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -229,79 +233,54 @@ bool initGL(int *argc, char **argv)
 	return true;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //! This kernel will modify the positions in the VBO in order to move the boids
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float2 *posParam)
+__global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes)
 {
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-# if __CUDA_ARCH__>=200
-	printf("%d \n", x);
-
-#endif  
-
-	posParam[x] = make_float2(x / 10, -x / 10);
+	posParam[x*(numBytes/100)] = make_float2(x / 10, -x / 10);
+	printf("%d ",numBytes);
 }
 
 void launch_kernel()
 {
-	// register this buffer object with CUDA
-	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, instanceVBO, cudaGraphicsMapFlagsWriteDiscard));
 	// map OpenGL buffer object for writing from CUDA
 	checkCudaErrors(cudaGraphicsMapResources(1, &cuda_vbo_resource, 0));
+
 	size_t num_bytes;
+
 	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&pos, &num_bytes,
 		cuda_vbo_resource));
+
+	cudaError_t err; 
+
+	err = cudaErrorLaunchFailure; 
+
 	//launches the kernel
-	simple_vbo_kernel << < 1, 100 >> > (pos);
+	simple_vbo_kernel << < 1, 100 >> > (pos, num_bytes);
+
+	//verify if kernel was executed
+	err = cudaGetLastError();
+	if (err != cudaSuccess)
+		printf("Error: %s\n", cudaGetErrorString(err));
+
 	//unmaps resource so that openGL can use it
-	checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0));
-}
-
-void massMovement(bool random = false)
-{
-	int index = 0;
-	float offset = 0.001f;
-
-	for (int y = -10; y < 10; y += 2)
-	{
-		for (int x = -10; x < 10; x += 2)
-		{
-			float2 translation;
-			if (!random) {
-				translation.x = (float)x / 10.0f + offset;
-				translation.y = (float)y / 10.0f + offset;
-			}
-
-			else {
-				translation.x = (rand() % 2 * 2 - 1)  * offset;
-				translation.y = (rand() % 2 * 2 - 1)  * offset;
-			}
-			index++;
-			translations[index].x += translation.x;
-			translations[index].y += translation.y;
-		}
-	}
+	checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0)); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Create VBO
 ////////////////////////////////////////////////////////////////////////////////
-void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
-	unsigned int vbo_res_flags)
+void createVBO(GLuint *vbo)
 {
-
 	float quadVertices[] = {
 		// positions     // colors
 		-0.05f,  0.05f,  1.0f, 0.0f, 0.0f,
 		0.05f, -0.05f,  0.0f, 1.0f, 0.0f,
 		-0.05f, -0.05f,  0.0f, 0.0f, 1.0f
 	};
-
-	massMovement(true);
 
 	assert(vbo);
 
@@ -339,10 +318,6 @@ void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res,
 ////////////////////////////////////////////////////////////////////////////////
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
 {
-
-	// unregister this buffer object with CUDA
-	checkCudaErrors(cudaGraphicsUnregisterResource(vbo_res));
-
 	glBindBuffer(1, *vbo);
 	glDeleteBuffers(1, vbo);
 
@@ -365,7 +340,6 @@ void display()
 
 	timecount++;
 	if (timecount >= movementTime) {
-
 		launch_kernel();
 		timecount = 0;
 	}
