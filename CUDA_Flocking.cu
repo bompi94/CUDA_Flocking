@@ -77,12 +77,9 @@ struct cudaGraphicsResource *cuda_vbo_resource;
 void *d_vbo_buffer = NULL;
 
 GLuint instanceVBO;
-struct cudaGraphicsResource *cuda_instancevbo_resource;
 
 //vao variables
 unsigned int VAO;
-
-float g_fAnim = 0.0;
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
@@ -108,7 +105,7 @@ float2 translations[100];
 
 Shader* shPointer;
 
-int movementTime = 5; 
+int movementTime = 1; 
 int timecount = 0; 
 
 
@@ -143,7 +140,7 @@ const char *windowTitle = "CUDA_Flocking (VBO)";
 //! Simple kernel to modify vertex positions in sine wave pattern
 //! @param data  data in global memory
 ///////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float4 *pos, unsigned int width, unsigned int height, float time)
+__global__ void simple_vbo_kernel(float4 *pos, unsigned int width, unsigned int height)
 {
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -156,7 +153,7 @@ __global__ void simple_vbo_kernel(float4 *pos, unsigned int width, unsigned int 
 
 	// calculate simple sine wave pattern
 	float freq = 4.0f;
-	float w = sinf(u*freq + time) * cosf(v*freq + time) * 0.5f;
+	float w = 0;
 
 	// write output vertex
 	pos[y*width + x] = make_float4(u, w, v, 1.0f);
@@ -164,12 +161,12 @@ __global__ void simple_vbo_kernel(float4 *pos, unsigned int width, unsigned int 
 
 
 void launch_kernel(float4 *pos, unsigned int mesh_width,
-	unsigned int mesh_height, float time)
+	unsigned int mesh_height)
 {
 	// execute the kernel
 	dim3 block(8, 8, 1);
 	dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-	simple_vbo_kernel << < grid, block >> > (pos, mesh_width, mesh_height, time);
+	simple_vbo_kernel << < grid, block >> > (pos, mesh_width, mesh_height);
 }
 
 
@@ -304,7 +301,7 @@ void runCuda(struct cudaGraphicsResource **vbo_resource)
 	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes,
 		*vbo_resource));
 
-	launch_kernel(dptr, mesh_width, mesh_height, g_fAnim);
+	launch_kernel(dptr, mesh_width, mesh_height);
 
 	// unmap buffer object
 	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
@@ -339,7 +336,7 @@ void runAutoTest(int devID, char **argv, char *ref_file)
 	void *imageData = malloc(mesh_width*mesh_height * sizeof(float));
 
 	// execute the kernel
-	launch_kernel((float4 *)d_vbo_buffer, mesh_width, mesh_height, g_fAnim);
+	launch_kernel((float4 *)d_vbo_buffer, mesh_width, mesh_height);
 
 	cudaDeviceSynchronize();
 	getLastCudaError("launch_kernel failed");
@@ -361,7 +358,7 @@ void runAutoTest(int devID, char **argv, char *ref_file)
 void massMovement(bool random = false)
 {
 	int index = 0;
-	float offset = 0.1f;
+	float offset = 0.001f;
 
 	for (int y = -10; y < 10; y += 2)
 	{
@@ -374,10 +371,12 @@ void massMovement(bool random = false)
 			}
 
 			else {
-				translation.x = (float)x / 10.0f + (rand() % 2 * 2 - 1);
-				translation.y = (float)y / 10.0f + (rand() % 2 * 2 - 1);
+				translation.x = (rand() % 2 * 2 - 1)  * offset;
+				translation.y = (rand() % 2 * 2 - 1)  * offset;
 			}
-			translations[index++] = translation;
+			index++; 
+			translations[index].x += translation.x;
+			translations[index].y += translation.y;
 		}
 	}
 }
