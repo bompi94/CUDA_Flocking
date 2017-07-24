@@ -115,7 +115,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="CUDA_Flocking.cu">
-      <CodeGeneration Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">compute_20,sm_20;%(CodeGeneration)</CodeGeneration>
+      <CodeGeneration Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">compute_20,sm_20</CodeGeneration>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>

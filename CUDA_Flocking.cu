@@ -107,7 +107,7 @@ Shader* shPointer;
 
 float2 *pos;
 
-int movementTime = 1;
+int movementTime = 15;
 int timecount = 0;
 
 #define MAX(a,b) ((a > b) ? a : b)
@@ -131,6 +131,24 @@ void timerEvent(int value);
 void launch_kernel(); 
 
 const char *windowTitle = "CUDA_Flocking";
+
+////////////////////////////////////////////////////////////////////////////////
+//! This kernel will modify the positions in the VBO in order to move the boids
+////////////////////////////////////////////////////////////////////////////////
+__global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes)
+{
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	//if (x <= 100) {
+	//	printf("%d %f %f \n", x, posParam[x].x, posParam[x].y);
+	//	//posParam[x] = make_float2(x , -x);
+	//}
+	if (x < 512) {
+		printf("indice %d valore %f %f \n", x, posParam[x].x, posParam[x].y);
+		posParam[x] = make_float2((float)x/10, -(float)x*0.5/10);
+	}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -158,7 +176,7 @@ int main(int argc, char **argv)
 	glutCloseFunc(cleanup);
 
 	// create VBO
-	createVBO(&vbo);														 
+	createVBO(&vbo);	
 
 	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, instanceVBO, cudaGraphicsMapFlagsWriteDiscard));
 
@@ -233,20 +251,8 @@ bool initGL(int *argc, char **argv)
 	return true;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//! This kernel will modify the positions in the VBO in order to move the boids
-////////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes)
-{
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-	posParam[x*(numBytes/100)] = make_float2(x / 10, -x / 10);
-	printf("%d ",numBytes);
-}
-
 void launch_kernel()
 {
-	// map OpenGL buffer object for writing from CUDA
 	checkCudaErrors(cudaGraphicsMapResources(1, &cuda_vbo_resource, 0));
 
 	size_t num_bytes;
@@ -255,19 +261,21 @@ void launch_kernel()
 		cuda_vbo_resource));
 
 	cudaError_t err; 
-
 	err = cudaErrorLaunchFailure; 
 
 	//launches the kernel
-	simple_vbo_kernel << < 1, 100 >> > (pos, num_bytes);
+	simple_vbo_kernel << < 1, 512 >> > (pos, num_bytes);
+	cudaDeviceSynchronize(); 
 
 	//verify if kernel was executed
 	err = cudaGetLastError();
 	if (err != cudaSuccess)
 		printf("Error: %s\n", cudaGetErrorString(err));
+	else printf("success "); 
 
 	//unmaps resource so that openGL can use it
 	checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0)); 
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
