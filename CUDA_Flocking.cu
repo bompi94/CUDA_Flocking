@@ -128,7 +128,7 @@ void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 void timerEvent(int value);
 
-void launch_kernel(); 
+void launch_kernel();
 
 const char *windowTitle = "CUDA_Flocking";
 
@@ -140,13 +140,13 @@ __global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes)
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	//if (x <= 100) {
-	//	printf("%d %f %f \n", x, posParam[x].x, posParam[x].y);
-	//	//posParam[x] = make_float2(x , -x);
-	//}
-	if (x < 512) {
-		printf("indice %d valore %f %f \n", x, posParam[x].x, posParam[x].y);
-		posParam[x] = make_float2((float)x/10, -(float)x*0.5/10);
+	int effectiveNumber = (numBytes / sizeof(float2));
+
+	if (x < effectiveNumber) {
+		float a = 2 * x - effectiveNumber;
+		float fx = cosf(x);
+		float fy = tanf(x); 
+		posParam[x] = make_float2(fx,fy);
 	}
 }
 
@@ -176,7 +176,7 @@ int main(int argc, char **argv)
 	glutCloseFunc(cleanup);
 
 	// create VBO
-	createVBO(&vbo);	
+	createVBO(&vbo);
 
 	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, instanceVBO, cudaGraphicsMapFlagsWriteDiscard));
 
@@ -260,21 +260,21 @@ void launch_kernel()
 	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&pos, &num_bytes,
 		cuda_vbo_resource));
 
-	cudaError_t err; 
-	err = cudaErrorLaunchFailure; 
+	cudaError_t err;
+	err = cudaErrorLaunchFailure;
 
 	//launches the kernel
 	simple_vbo_kernel << < 1, 512 >> > (pos, num_bytes);
-	cudaDeviceSynchronize(); 
+	cudaDeviceSynchronize();
 
 	//verify if kernel was executed
 	err = cudaGetLastError();
 	if (err != cudaSuccess)
 		printf("Error: %s\n", cudaGetErrorString(err));
-	else printf("success "); 
+	else printf("success ");
 
 	//unmaps resource so that openGL can use it
-	checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0)); 
+	checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0));
 
 }
 
@@ -394,7 +394,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		glutDestroyWindow(glutGetWindow());
 		return;
 #endif
-	}
+}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
