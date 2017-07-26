@@ -140,6 +140,8 @@ __global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes)
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
+	//the length of the vector will be greater than the actual number of bodies
+	//i need effective number to operate on the bodies i care about
 	int effectiveNumber = (numBytes / sizeof(float2));
 
 	if (x < effectiveNumber) {
