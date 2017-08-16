@@ -65,8 +65,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // constants
-const unsigned int window_width = 512;
-const unsigned int window_height = 512;
+const unsigned int window_width = 1024;
+const unsigned int window_height = 1024;
 
 const unsigned int mesh_width = 256;
 const unsigned int mesh_height = 256;
@@ -76,7 +76,7 @@ GLuint vbo;
 struct cudaGraphicsResource *cuda_vbo_resource;
 void *d_vbo_buffer = NULL;
 
-GLuint instanceVBO;
+GLuint translationsVBO;
 
 //vao variables
 unsigned int VAO;
@@ -107,7 +107,7 @@ Shader* shPointer;
 
 float2 *pos;
 
-int movementTime = 15;
+int movementTime = 5;
 int timecount = 0;
 
 #define MAX(a,b) ((a > b) ? a : b)
@@ -135,20 +135,19 @@ const char *windowTitle = "CUDA_Flocking";
 ////////////////////////////////////////////////////////////////////////////////
 //! This kernel will modify the positions in the VBO in order to move the boids
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes)
+__global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes, float timecount)
 {
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+	unsigned int threadX = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int threadY = blockIdx.y*blockDim.y + threadIdx.y;
 
 	//the length of the vector will be greater than the actual number of bodies
 	//i need effective number to operate on the bodies i care about
 	int effectiveNumber = (numBytes / sizeof(float2));
 
-	if (x < effectiveNumber) {
-		float a = 2 * x - effectiveNumber;
-		float fx = cosf(x);
-		float fy = tanf(x); 
-		posParam[x] = make_float2(fx,fy);
+	if (threadX < effectiveNumber) {
+		float posX = cosf( timecount * threadX);
+		float posY = sinf(-timecount * threadX); 
+		posParam[threadX] = make_float2(posX,posY);
 	}
 }
 
@@ -180,7 +179,7 @@ int main(int argc, char **argv)
 	// create VBO
 	createVBO(&vbo);
 
-	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, instanceVBO, cudaGraphicsMapFlagsWriteDiscard));
+	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, translationsVBO, cudaGraphicsMapFlagsWriteDiscard));
 
 	// start rendering mainloop
 	glutMainLoop();
@@ -266,7 +265,7 @@ void launch_kernel()
 	err = cudaErrorLaunchFailure;
 
 	//launches the kernel
-	simple_vbo_kernel << < 1, 512 >> > (pos, num_bytes);
+	simple_vbo_kernel << < 1, 512 >> > (pos, num_bytes, rand());
 	cudaDeviceSynchronize();
 
 	//verify if kernel was executed
@@ -281,15 +280,15 @@ void launch_kernel()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//! Create VBO
+//! Create VBO and fills the VBO so that the positions of the boids can be modifiable
 ////////////////////////////////////////////////////////////////////////////////
 void createVBO(GLuint *vbo)
 {
 	float quadVertices[] = {
 		// positions     // colors
-		-0.05f,  0.05f,  1.0f, 0.0f, 0.0f,
-		0.05f, -0.05f,  0.0f, 1.0f, 0.0f,
-		-0.05f, -0.05f,  0.0f, 0.0f, 1.0f
+		0.0f,  0.05f,  1.0f, 0.0f, 0.0f,
+		0.02f, -0.02f,  0.0f, 1.0f, 0.0f,
+		-0.02f, -0.02f,  0.0f, 0.0f, 1.0f
 	};
 
 	assert(vbo);
@@ -310,14 +309,15 @@ void createVBO(GLuint *vbo)
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)3);
 	glEnableVertexAttribArray(1);
 
-	//loading offsets
-	glGenBuffers(1, &instanceVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+	//loading position offsets
+	glGenBuffers(1, &translationsVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * 100, &translations[0], GL_DYNAMIC_DRAW);
 
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	glEnableVertexAttribArray(2);
 
+	//this is necessary for instancing in openGL
 	glVertexAttribDivisorARB(2, 1);
 
 	SDK_CHECK_ERROR_GL();
