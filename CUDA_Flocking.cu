@@ -26,6 +26,8 @@
 */
 
 
+#include "Boid.h"
+
 // includes, system
 #include <stdlib.h>
 #include <stdio.h>
@@ -58,6 +60,7 @@
 #include <helper_cuda_gl.h>      // helper functions for CUDA/GL interop
 
 #include <vector_types.h>
+#include <vector_functions.h>
 
 #define MAX_EPSILON_ERROR 10.0f
 #define THRESHOLD          0.30f
@@ -70,6 +73,8 @@ const unsigned int window_height = 1024;
 
 const unsigned int mesh_width = 256;
 const unsigned int mesh_height = 256;
+
+const unsigned int numberOfBoids = 100; 
 
 // vbo variables
 GLuint vbo;
@@ -101,14 +106,16 @@ bool g_bQAReadback = false;
 int *pArgc = NULL;
 char **pArgv = NULL;
 
-float2 translations[100];
-
 Shader* shPointer;
 
 float2 *pos;
 
-int movementTime = 5;
+int movementTime = 1;
 int timecount = 0;
+
+//boid i is defined by positions[i] and velocities[i]
+float2 positions[numberOfBoids];
+float2 velocities[numberOfBoids];
 
 #define MAX(a,b) ((a > b) ? a : b)
 
@@ -147,8 +154,40 @@ __global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes, float timec
 	if (threadX < effectiveNumber) {
 		float posX = cosf( timecount * threadX);
 		float posY = sinf(-timecount * threadX); 
-		posParam[threadX] = make_float2(posX,posY);
+		posParam[threadX] = make_float2(posX/2,posY/2);
 	}
+}
+
+float dist(float2 point1, float2 point2)
+{
+	return ((point2.x * point2.x) - (point1.x*point1.x)) / ((point2.y*point2.y) - (point1.y*point1.y)); 
+}
+
+__global__ void calculateFlockingKernel(float2* positions, float2* velocities, float boidRadius)
+{
+	//unsigned int threadX = blockIdx.x*blockDim.x + threadIdx.x;
+
+	//float2 myPosition = positions[threadX]; 
+
+	//int neighbourCount = -1; 
+
+	//int neighbors[numberOfBoids]; 
+
+	//for (int i = 0; i < numberOfBoids; i++) {
+	//	if (i != threadX && dist(positions[i], myPosition) < boidRadius) {
+	//		neighbourCount++;
+	//		neighbors[neighbourCount] = i; 
+	//	}
+	//}
+
+	//float2 alignemt; 
+	//float2 cohesion; 
+	//float2 separation; 
+
+	//float x = velocities[threadNumber].x + alignment.x + cohesion.x + separation.x; 
+	//float y = velocities[threadNumber].y + alignment.y + cohesion.y + separation.y;
+
+	//return the velocities vector back to host
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,15 +215,16 @@ int main(int argc, char **argv)
 	glutMotionFunc(motion);
 	glutCloseFunc(cleanup);
 
-	// create VBO
-	createVBO(&vbo);
 
-	checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, translationsVBO, cudaGraphicsMapFlagsWriteDiscard));
+	for (int i = 0; i < numberOfBoids; i++)
+	{
+		velocities[i] = make_float2((float)(rand()%10)/300, (float)(rand()%10)/300); 
+	}
+
+	createVBO(&vbo); 
 
 	// start rendering mainloop
 	glutMainLoop();
-
-	checkCudaErrors(cudaGraphicsUnregisterResource(cuda_vbo_resource));
 
 	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -312,7 +352,7 @@ void createVBO(GLuint *vbo)
 	//loading position offsets
 	glGenBuffers(1, &translationsVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * 100, &translations[0], GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
 
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	glEnableVertexAttribArray(2);
@@ -341,20 +381,27 @@ void display()
 {
 	sdkStartTimer(&timer);
 
-	// run CUDA kernel to generate vertex positions
-	//runCuda(&cuda_vbo_resource);
-
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glBindVertexArray(VAO);
 
 	timecount++;
 	if (timecount >= movementTime) {
-		launch_kernel();
+
+		for (int i = 0; i < numberOfBoids; i++)
+		{
+			positions[i].x += velocities[i].x; 
+			positions[i].y += velocities[i].y;
+		}
+
 		timecount = 0;
 	}
 
-	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
+	////loading position offsets
+	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
+
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, numberOfBoids);
 
 	glutSwapBuffers();
 
