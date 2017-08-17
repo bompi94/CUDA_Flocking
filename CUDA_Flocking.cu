@@ -171,7 +171,7 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 
 		//end of alignment
 
-		velocities[threadX] = v; 
+		//velocities[threadX] = v; 
 		positions[threadX].x += velocities[threadX].x; 
 		positions[threadX].y += velocities[threadX].y;
 	}
@@ -179,9 +179,7 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 
 void launchKernel()
 {
-
 	updatePositionsWithVelocities << <1, 512 >> > (dev_positions, dev_velocities, boidRadius);
-
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
@@ -215,7 +213,9 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		velocities[i] = make_float2((float)(rand() % 10) / 500, (float)(rand() % 10) / 500);
+		int a = rand() % 2 * 2 - 1;
+		int b = rand() % 2 * 2 - 1;
+		velocities[i] = make_float2(a*(float)(rand() % 10) / 500, b*(float)(rand() % 10) / 500);
 	}
 
 	createVBO(&vbo);
@@ -368,9 +368,7 @@ void display()
 	timecount++;
 
 	if (timecount >= movementTime) {
-
 		launchKernel();
-
 		timecount = 0;
 	}
 
@@ -378,7 +376,7 @@ void display()
 	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
 
-	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, numberOfBoids);
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 
 	glutSwapBuffers();
 
