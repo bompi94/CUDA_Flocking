@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector_functions.h>
-float boidRadius = 0.5;
+float boidRadius = 0.1;
 class Boid {
 
 public:

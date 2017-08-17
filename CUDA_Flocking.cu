@@ -74,7 +74,7 @@ const unsigned int window_height = 1024;
 const unsigned int mesh_width = 256;
 const unsigned int mesh_height = 256;
 
-const unsigned int numberOfBoids = 100; 
+const unsigned int numberOfBoids = 100;
 
 // vbo variables
 GLuint vbo;
@@ -135,60 +135,57 @@ void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 void timerEvent(int value);
 
-void launch_kernel();
+float2 *dev_positions, *dev_velocities;
 
 const char *windowTitle = "CUDA_Flocking";
 
-////////////////////////////////////////////////////////////////////////////////
-//! This kernel will modify the positions in the VBO in order to move the boids
-////////////////////////////////////////////////////////////////////////////////
-__global__ void simple_vbo_kernel(float2 *posParam, size_t numBytes, float timecount)
+__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius)
 {
 	unsigned int threadX = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int threadY = blockIdx.y*blockDim.y + threadIdx.y;
 
-	//the length of the vector will be greater than the actual number of bodies
-	//i need effective number to operate on the bodies i care about
-	int effectiveNumber = (numBytes / sizeof(float2));
+	if (threadX < numberOfBoids)
+	{
 
-	if (threadX < effectiveNumber) {
-		float posX = cosf( timecount * threadX);
-		float posY = sinf(-timecount * threadX); 
-		posParam[threadX] = make_float2(posX/2,posY/2);
+
+		float2 v = make_float2(0, 0);
+		int cont = 0;
+
+		//alignment; 
+		for (int i = 0; i < numberOfBoids; i++)
+		{
+			float2 point1, point2; 
+			point1 = positions[threadX]; 
+			point2 = positions[i]; 
+			float distance = sqrtf(pow(point2.x - point1.x, 2) + pow(point2.y - point1.y, 2));
+
+			if (threadX != i &&  distance < boidradius)
+			{
+				v.x += velocities[i].x;
+				v.y += velocities[i].y;
+				cont++;
+			}
+		}
+
+		v.x /= cont;
+		v.y /= cont;
+
+		//end of alignment
+
+		velocities[threadX] = v; 
+		positions[threadX].x += velocities[threadX].x; 
+		positions[threadX].y += velocities[threadX].y;
 	}
 }
 
-float dist(float2 point1, float2 point2)
+void launchKernel()
 {
-	return ((point2.x * point2.x) - (point1.x*point1.x)) / ((point2.y*point2.y) - (point1.y*point1.y)); 
+
+	updatePositionsWithVelocities << <1, 512 >> > (dev_positions, dev_velocities, boidRadius);
+
+	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
-__global__ void calculateFlockingKernel(float2* positions, float2* velocities, float boidRadius)
-{
-	//unsigned int threadX = blockIdx.x*blockDim.x + threadIdx.x;
 
-	//float2 myPosition = positions[threadX]; 
-
-	//int neighbourCount = -1; 
-
-	//int neighbors[numberOfBoids]; 
-
-	//for (int i = 0; i < numberOfBoids; i++) {
-	//	if (i != threadX && dist(positions[i], myPosition) < boidRadius) {
-	//		neighbourCount++;
-	//		neighbors[neighbourCount] = i; 
-	//	}
-	//}
-
-	//float2 alignemt; 
-	//float2 cohesion; 
-	//float2 separation; 
-
-	//float x = velocities[threadNumber].x + alignment.x + cohesion.x + separation.x; 
-	//float y = velocities[threadNumber].y + alignment.y + cohesion.y + separation.y;
-
-	//return the velocities vector back to host
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -218,13 +215,22 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		velocities[i] = make_float2((float)(rand()%10)/300, (float)(rand()%10)/300); 
+		velocities[i] = make_float2((float)(rand() % 10) / 500, (float)(rand() % 10) / 500);
 	}
 
-	createVBO(&vbo); 
+	createVBO(&vbo);
+
+	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
+	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
+
+	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
 
 	// start rendering mainloop
 	glutMainLoop();
+
+	cudaFree(dev_positions); 
+	cudaFree(dev_velocities); 
 
 	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -292,33 +298,6 @@ bool initGL(int *argc, char **argv)
 	return true;
 }
 
-void launch_kernel()
-{
-	checkCudaErrors(cudaGraphicsMapResources(1, &cuda_vbo_resource, 0));
-
-	size_t num_bytes;
-
-	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&pos, &num_bytes,
-		cuda_vbo_resource));
-
-	cudaError_t err;
-	err = cudaErrorLaunchFailure;
-
-	//launches the kernel
-	simple_vbo_kernel << < 1, 512 >> > (pos, num_bytes, rand());
-	cudaDeviceSynchronize();
-
-	//verify if kernel was executed
-	err = cudaGetLastError();
-	if (err != cudaSuccess)
-		printf("Error: %s\n", cudaGetErrorString(err));
-	else printf("success ");
-
-	//unmaps resource so that openGL can use it
-	checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0));
-
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //! Create VBO and fills the VBO so that the positions of the boids can be modifiable
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,6 +353,7 @@ void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
 	*vbo = 0;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //! Display callback -> called multiple times after the first glutMainLoop() 
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,13 +366,10 @@ void display()
 	glBindVertexArray(VAO);
 
 	timecount++;
+
 	if (timecount >= movementTime) {
 
-		for (int i = 0; i < numberOfBoids; i++)
-		{
-			positions[i].x += velocities[i].x; 
-			positions[i].y += velocities[i].y;
-		}
+		launchKernel();
 
 		timecount = 0;
 	}
@@ -443,7 +420,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		glutDestroyWindow(glutGetWindow());
 		return;
 #endif
-}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
