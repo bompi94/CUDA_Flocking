@@ -146,11 +146,9 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 	if (threadX < numberOfBoids)
 	{
 
-
-		float2 v = make_float2(0, 0);
+		//ALIGNMENT; 
+		float2 alignmentVector = make_float2(0, 0);
 		int cont = 0;
-
-		//alignment; 
 		for (int i = 0; i < numberOfBoids; i++)
 		{
 			float2 point1, point2; 
@@ -160,20 +158,58 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 
 			if (threadX != i &&  distance < boidradius)
 			{
-				v.x += velocities[i].x;
-				v.y += velocities[i].y;
+				alignmentVector.x += velocities[i].x;
+				alignmentVector.y += velocities[i].y;
 				cont++;
 			}
 		}
 
-		v.x /= cont;
-		v.y /= cont;
+		alignmentVector.x /= cont;
+		alignmentVector.y /= cont;
 
-		//end of alignment
+		///	normalization of v
+		float vlength = sqrtf((alignmentVector.x * alignmentVector.x) + (alignmentVector.y * alignmentVector.y)); 
+		alignmentVector.x *= vlength; 
+		alignmentVector.y *= vlength; 
 
-		//velocities[threadX] = v; 
-		positions[threadX].x += velocities[threadX].x; 
-		positions[threadX].y += velocities[threadX].y;
+
+		//COHESION
+		float2 cohesionVector = make_float2(0, 0);
+		for (int i = 0; i < numberOfBoids; i++)
+		{
+			float2 point1, point2;
+			point1 = positions[threadX];
+			point2 = positions[i];
+			float distance = sqrtf(pow(point2.x - point1.x, 2) + pow(point2.y - point1.y, 2));
+
+			if (threadX != i &&  distance < boidradius)
+			{
+				cohesionVector.x += positions[i].x; 
+				cohesionVector.y += positions[i].y; 
+			}
+		}
+
+		cohesionVector.x /= cont; 
+		cohesionVector.y /= cont; 
+		cohesionVector.x -= positions[threadX].x; 
+		cohesionVector.y -= positions[threadX].y;
+		///normalization of cohesion
+		float cohesionlength = sqrtf((cohesionVector.x * cohesionVector.x) + (cohesionVector.y * cohesionVector.y));
+		cohesionVector.x *= cohesionlength;
+		cohesionVector.y *= cohesionlength;
+
+		//END RESULT
+		float2 velocityOfTheBoid = velocities[threadX]; 
+		velocityOfTheBoid.x += alignmentVector.x + cohesionVector.x;
+		velocityOfTheBoid.y += alignmentVector.y + cohesionVector.y;
+
+		///normalization of velocity of the boid
+		float velocityOfTheBoidLength = sqrtf((velocityOfTheBoid.x * velocityOfTheBoid.x) + (velocityOfTheBoid.y * velocityOfTheBoid.y));
+		velocityOfTheBoid.x *= velocityOfTheBoidLength;
+		velocityOfTheBoid.y *= velocityOfTheBoidLength;
+
+		positions[threadX].x += velocityOfTheBoid.x;
+		positions[threadX].y += velocityOfTheBoid.y;
 	}
 }
 
