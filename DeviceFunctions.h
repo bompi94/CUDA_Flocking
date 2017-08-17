@@ -21,3 +21,13 @@ __device__ float2 vectorDivision(float2 vector, float scalar)
 {
 	return make_float2(vector.x / scalar, vector.y / scalar);
 }
+
+__device__ float2 normalizeVector(float2 vector)
+{
+	///normalization of velocity of the boid
+	float length = sqrtf((vector.x * vector.x) + (vector.y * vector.y));
+	vector.x /= length;
+	vector.y /= length;
+
+	return vector; 
+}

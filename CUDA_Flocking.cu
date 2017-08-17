@@ -50,6 +50,7 @@
 #include <cuda_runtime.h>
 #include "device_launch_parameters.h"
 #include <cuda_gl_interop.h>
+#include "device_functions.h"; 
 
 // Utilities and timing functions
 #include <helper_functions.h>    // includes cuda.h and cuda_runtime_api.h
@@ -159,19 +160,17 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 		}
 	}
 
-	alignmentVector = vectorDivision(alignmentVector, cont); 
+	alignmentVector = vectorDivision(alignmentVector, cont);
 
-	///	normalization of v
-	float vlength = sqrtf((alignmentVector.x * alignmentVector.x) + (alignmentVector.y * alignmentVector.y));
-	alignmentVector.x *= vlength;
-	alignmentVector.y *= vlength;
-	return alignmentVector; 
+	alignmentVector = normalizeVector(alignmentVector); 
+
+	return alignmentVector;
 }
 
 __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, float boidradius)
 {
 	float2 cohesionVector = make_float2(0, 0);
-	int cont = 0; 
+	int cont = 0;
 
 	for (int i = 0; i < numberOfBoids; i++)
 	{
@@ -184,39 +183,37 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 		{
 			cohesionVector.x += positions[i].x;
 			cohesionVector.y += positions[i].y;
-			cont++; 
+			cont++;
 		}
 	}
 
-	cohesionVector.x /= cont;
-	cohesionVector.y /= cont;
+	cohesionVector = vectorDivision(cohesionVector, cont); 
+
 	cohesionVector.x -= positions[threadX].x;
 	cohesionVector.y -= positions[threadX].y;
-	///normalization of cohesion
-	float cohesionlength = sqrtf((cohesionVector.x * cohesionVector.x) + (cohesionVector.y * cohesionVector.y));
-	cohesionVector.x *= cohesionlength;
-	cohesionVector.y *= cohesionlength;
 
-	return cohesionVector; 
+	cohesionVector = normalizeVector(cohesionVector); 
+
+	return cohesionVector;
 }
 
 __device__ float2 separation(int threadX, float2 *positions, float2 *velocities, float boidradius)
 {
 	float2 separationVector = make_float2(0, 0);
-	int cont = 0; 
+	int cont = 0;
 
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		float2 point1, point2;
 		point1 = positions[threadX];
 		point2 = positions[i];
-		float distance = sqrtf(pow(point2.x - point1.x, 2) + pow(point2.y - point1.y, 2));
+		float distance = distanceBetweenPoints(point1, point2); 
 
 		if (threadX != i &&  distance < boidradius)
 		{
 			separationVector.x += positions[i].x - positions[threadX].x;
 			separationVector.y += positions[i].y - positions[threadX].y;
-			cont++; 
+			cont++;
 		}
 
 	}
@@ -225,14 +222,12 @@ __device__ float2 separation(int threadX, float2 *positions, float2 *velocities,
 	separationVector.y /= cont;
 
 	separationVector.x *= -1;
-	separationVector.y *= -1;
+	separationVector.y *= -1;	
 
 	///normalization of separation
-	float separationlength = sqrtf((separationVector.x * separationVector.x) + (separationVector.y * separationVector.y));
-	separationVector.x *= separationlength;
-	separationVector.y *= separationlength;
+	separationVector = normalizeVector(separationVector);
 
-	return separationVector; 
+	return separationVector;
 }
 
 __global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius)
@@ -241,24 +236,20 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 
 	if (threadX < numberOfBoids)
 	{
-		float2 alignmentVector = alignment(threadX, positions, velocities, boidradius); 
+		float2 alignmentVector = alignment(threadX, positions, velocities, boidradius);
 		float2 cohesionVector = cohesion(threadX, positions, velocities, boidradius);
 		float2 separationVector = separation(threadX, positions, velocities, boidradius);
 
-		//---END RESULT
-		float2 velocityOfTheBoid = velocities[threadX]; 
+		float2 velocityOfTheBoid = velocities[threadX];
 		velocityOfTheBoid.x += alignmentVector.x + cohesionVector.x + separationVector.x;
 		velocityOfTheBoid.y += alignmentVector.y + cohesionVector.y + separationVector.y;
 
-		///normalization of velocity of the boid
-		//float velocityOfTheBoidLength = sqrtf((velocityOfTheBoid.x * velocityOfTheBoid.x) + (velocityOfTheBoid.y * velocityOfTheBoid.y));
-		//velocityOfTheBoid.x *= velocityOfTheBoidLength;
-		//velocityOfTheBoid.y *= velocityOfTheBoidLength;
+		velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
 
-		positions[threadX].x += velocityOfTheBoid.x ;
-		positions[threadX].y += velocityOfTheBoid.y ;
+		velocities[threadX] = vectorMultiplication(velocityOfTheBoid, 5); 
 
-		velocities[threadX] = velocityOfTheBoid; 
+		positions[threadX].x += velocities[threadX].x;
+		positions[threadX].y += velocities[threadX].y;
 	}
 }
 
@@ -267,7 +258,6 @@ void launchKernel()
 	updatePositionsWithVelocities << <1, 512 >> > (dev_positions, dev_velocities, boidRadius);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -299,7 +289,10 @@ int main(int argc, char **argv)
 	{
 		int a = rand() % 2 * 2 - 1;
 		int b = rand() % 2 * 2 - 1;
-		velocities[i] = make_float2(a*(float)(rand() % 10) / 500, b*(float)(rand() % 10) / 500);
+		
+		//velocities[i] = make_float2(a*(float)(rand() % 10) / 500, b*(float)(rand() % 10) / 500);
+		velocities[i] = make_float2(0.01, 0.01);
+		positions[i] = make_float2((float)a / 3, (float)b / 3);
 	}
 
 	createVBO(&vbo);
@@ -313,8 +306,8 @@ int main(int argc, char **argv)
 	// start rendering mainloop
 	glutMainLoop();
 
-	cudaFree(dev_positions); 
-	cudaFree(dev_velocities); 
+	cudaFree(dev_positions);
+	cudaFree(dev_velocities);
 
 	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -486,7 +479,6 @@ void cleanup()
 		deleteVBO(&vbo, cuda_vbo_resource);
 	}
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Keyboard events handler
