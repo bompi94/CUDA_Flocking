@@ -14,11 +14,13 @@ __device__ float distanceBetweenPoints(float2 point1, float2 point2)
 
 __device__ float2 vectorMultiplication(float2 vector, float scalar)
 {
+ 
 	return make_float2(vector.x*scalar, vector.y*scalar);
 }
 
 __device__ float2 vectorDivision(float2 vector, float scalar)
 {
+
 	return make_float2(vector.x / scalar, vector.y / scalar);
 }
 

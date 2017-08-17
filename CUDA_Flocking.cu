@@ -245,8 +245,8 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 		velocityOfTheBoid.y += alignmentVector.y + cohesionVector.y + separationVector.y;
 
 		velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
-
-		velocities[threadX] = vectorMultiplication(velocityOfTheBoid, 5); 
+		velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, 0.001); 
+		velocities[threadX] = velocityOfTheBoid;
 
 		positions[threadX].x += velocities[threadX].x;
 		positions[threadX].y += velocities[threadX].y;
@@ -290,9 +290,9 @@ int main(int argc, char **argv)
 		int a = rand() % 2 * 2 - 1;
 		int b = rand() % 2 * 2 - 1;
 		
-		//velocities[i] = make_float2(a*(float)(rand() % 10) / 500, b*(float)(rand() % 10) / 500);
-		velocities[i] = make_float2(0.01, 0.01);
-		positions[i] = make_float2((float)a / 3, (float)b / 3);
+		velocities[i] = make_float2(a*(float)(rand() % 10) / 500, b*(float)(rand() % 10) / 500);
+		//velocities[i] = make_float2(0.01, 0.01);
+		positions[i] = make_float2(a*(float)(rand() % 10) / 10, b*(float)(rand() % 10) / 10);
 	}
 
 	createVBO(&vbo);
