@@ -71,13 +71,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // constants
-const unsigned int window_width = 1024;
-const unsigned int window_height = 1024;
+const unsigned int window_width = 512;
+const unsigned int window_height = 512;
 
 const unsigned int mesh_width = 256;
 const unsigned int mesh_height = 256;
-
-const unsigned int numberOfBoids = 100;
 
 // vbo variables
 GLuint vbo;
@@ -234,18 +232,31 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 {
 	unsigned int threadX = blockIdx.x*blockDim.x + threadIdx.x;
 
+	float alignmentWeight, cohesionWeight, separationWeight; 
+
+	alignmentWeight = 9; 
+	cohesionWeight = 4;
+	separationWeight = 4; 
+
+	float boidSpeed = 0.005;
+
 	if (threadX < numberOfBoids)
 	{
-		float2 alignmentVector = alignment(threadX, positions, velocities, boidradius);
+		float2 alignmentVector = alignment(threadX, positions, velocities, boidradius) ;
 		float2 cohesionVector = cohesion(threadX, positions, velocities, boidradius);
 		float2 separationVector = separation(threadX, positions, velocities, boidradius);
 
 		float2 velocityOfTheBoid = velocities[threadX];
-		velocityOfTheBoid.x += alignmentVector.x + cohesionVector.x + separationVector.x;
-		velocityOfTheBoid.y += alignmentVector.y + cohesionVector.y + separationVector.y;
+		velocityOfTheBoid.x += alignmentVector.x * alignmentWeight 
+			+ cohesionVector.x * cohesionWeight 
+			+ separationVector.x * separationWeight;
+
+		velocityOfTheBoid.y += alignmentVector.y * alignmentWeight 
+			+ cohesionVector.y * cohesionWeight
+			+ separationVector.y * separationWeight;
 
 		velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
-		velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, 0.001); 
+		velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed); 
 		velocities[threadX] = velocityOfTheBoid;
 
 		positions[threadX].x += velocities[threadX].x;
@@ -290,9 +301,11 @@ int main(int argc, char **argv)
 		int a = rand() % 2 * 2 - 1;
 		int b = rand() % 2 * 2 - 1;
 		
-		velocities[i] = make_float2(a*(float)(rand() % 10) / 500, b*(float)(rand() % 10) / 500);
+		velocities[i] = make_float2(a*(float)(rand() % 10) / 50, b*(float)(rand() % 10) / 50);
+		velocities[i] = normalizeVector(velocities[i]); 
 		//velocities[i] = make_float2(0.01, 0.01);
-		positions[i] = make_float2(a*(float)(rand() % 10) / 10, b*(float)(rand() % 10) / 10);
+		//positions[i] = make_float2((float) 0.0f, (float) 0.0f); 
+		positions[i] = make_float2(a*(float)(rand() % 10) / 50, b*(float)(rand() % 10) / 50);
 	}
 
 	createVBO(&vbo);
@@ -497,6 +510,26 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	}
 }
 
+float2 mouseToWorldCoordinates(int x, int y)
+{
+	float fX = (float)x / window_width;
+	float fY = (float)y / window_width; 
+	fX = fX * 2 - 1; 
+	fY = -fY * 2 +1; 
+	return make_float2(fX, fY); 
+}
+
+void setFlockDestination(float2 destination)
+{
+	for (int i = 0; i < numberOfBoids; i++)
+	{
+		velocities[i].x = destination.x - positions[i].x; 
+		velocities[i].y = destination.y - positions[i].y;
+	}
+	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //! Mouse event handlers
 ////////////////////////////////////////////////////////////////////////////////
@@ -505,6 +538,8 @@ void mouse(int button, int state, int x, int y)
 	if (state == GLUT_DOWN)
 	{
 		mouse_buttons |= 1 << button;
+		float2 destination = mouseToWorldCoordinates(x, y); 
+		setFlockDestination(destination); 
 	}
 	else if (state == GLUT_UP)
 	{
@@ -514,6 +549,7 @@ void mouse(int button, int state, int x, int y)
 	mouse_old_x = x;
 	mouse_old_y = y;
 }
+
 
 void motion(int x, int y)
 {

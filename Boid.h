@@ -1,7 +1,10 @@
 #pragma once
 
 #include <vector_functions.h>
-float boidRadius = 1;
+float boidRadius = 0.05;
+
+const unsigned int numberOfBoids = 100;
+
 class Boid {
 
 public:
