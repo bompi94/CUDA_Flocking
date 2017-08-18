@@ -96,7 +96,7 @@ void createVBO(GLuint *vbo)
 	glEnableVertexAttribArray(0);
 
 	//loading colors
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)3);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 
 	//loading position offsets
@@ -154,8 +154,19 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector);
+
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
+
+		float limit = 1; 
+		if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit) 
+		{
+			positions[boidIndex].x *= -1;
+		}
+		if(positions[boidIndex].y > limit || positions[boidIndex].y < -limit) 
+		{
+			positions[boidIndex].y *= -1; 
+		}
 	}
 }
 
@@ -243,7 +254,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		glutDestroyWindow(glutGetWindow());
 		return;
 #endif
-}
+	}
 }
 
 void mouse(int button, int state, int x, int y)
@@ -281,8 +292,9 @@ void setFlockDestination(float2 destination)
 {
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		velocities[i].x = destination.x - positions[i].x;
-		velocities[i].y = destination.y - positions[i].y;
+		velocities[i].x += destination.x - positions[i].x;
+		velocities[i].y += destination.y - positions[i].y;
+		velocities[i] = normalizeVector(velocities[i]);
 	}
 	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
 }
