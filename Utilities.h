@@ -90,6 +90,10 @@ void freeCUDADataStructures();
 void endApplication(); 
 void computeFPS(); 
 int randomMinusOneOrOne();
-
+__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius);
+float2 mouseToWorldCoordinates(int x, int y);
+void setFlockDestination(float2 destination);
+void sendFlockToMouseClick(int x, int y);
+void loadPositionOffsetOnVBO();
 
 #endif

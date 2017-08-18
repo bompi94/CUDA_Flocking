@@ -67,41 +67,6 @@ void registerGlutCallbacks()
 	glutCloseFunc(cleanup);
 }
 
-__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius)
-{
-	unsigned int threadX = blockIdx.x*blockDim.x + threadIdx.x;
-
-	float alignmentWeight, cohesionWeight, separationWeight; 
-	alignmentWeight = 4; 
-	cohesionWeight = 4;
-	separationWeight = 4; 
-	float boidSpeed = 0.01;
-	if (threadX < numberOfBoids)
-	{
-		float2 alignmentVector = alignment(threadX, positions, velocities, boidradius) ;
-		float2 cohesionVector = cohesion(threadX, positions, velocities, boidradius);
-		float2 separationVector = separation(threadX, positions, velocities, boidradius);
-		float2 velocityOfTheBoid = velocities[threadX];
-		velocityOfTheBoid.x += alignmentVector.x * alignmentWeight 
-			+ cohesionVector.x * cohesionWeight 
-			+ separationVector.x * separationWeight;
-		velocityOfTheBoid.y += alignmentVector.y * alignmentWeight 
-			+ cohesionVector.y * cohesionWeight
-			+ separationVector.y * separationWeight;
-		velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
-		velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed); 
-		velocities[threadX] = velocityOfTheBoid;
-		positions[threadX].x += velocities[threadX].x;
-		positions[threadX].y += velocities[threadX].y;
-	}
-}
-
-void launchFlockingKernel()
-{
-	updatePositionsWithVelocities << <1, 512 >> > (dev_positions, dev_velocities, boidRadius);
-	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
-}
-
 void preparePositionsAndVelocitiesArray()
 {
 	for (int i = 0; i < numberOfBoids; i++)
@@ -112,51 +77,6 @@ void preparePositionsAndVelocitiesArray()
 		velocities[i] = normalizeVector(velocities[i]);
 		positions[i] = make_float2(a*(float)(rand() % 10) / 50, b*(float)(rand() % 10) / 50);
 	}
-}
-
-void prepareCUDADataStructures()
-{
-	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
-	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
-	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
-	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
-}
-
-void freeCUDADataStructures()
-{
-	cudaFree(dev_positions);
-	cudaFree(dev_velocities);
-}
-
-void endApplication()
-{
-	freeCUDADataStructures();
-	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
-	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
-}
-
-void computeFPS()
-{
-	frameCount++;
-	fpsCount++;
-
-	if (fpsCount == fpsLimit)
-	{
-		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-		fpsCount = 0;
-		fpsLimit = (int)MAX(avgFPS, 1.f);
-
-		sdkResetTimer(&timer);
-	}
-
-	char fps[256];
-	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
-	glutSetWindowTitle(fps);
-}
-
-int randomMinusOneOrOne()
-{
-	return rand() % 2 * 2 - 1;;
 }
 
 void createVBO(GLuint *vbo)
@@ -200,18 +120,12 @@ void createVBO(GLuint *vbo)
 	SDK_CHECK_ERROR_GL();
 }
 
-void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
+void prepareCUDADataStructures()
 {
-	glBindBuffer(1, *vbo);
-	glDeleteBuffers(1, vbo);
-
-	*vbo = 0;
-}
-
-void loadPositionOffsetOnVBO()
-{
-	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
+	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
+	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
+	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
 }
 
 void display()
@@ -224,11 +138,84 @@ void display()
 		launchFlockingKernel();
 		timecount = 0;
 	}
-	loadPositionOffsetOnVBO(); 
+	loadPositionOffsetOnVBO();
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 	glutSwapBuffers();
 	sdkStopTimer(&timer);
 	computeFPS();
+}
+
+void launchFlockingKernel()
+{
+	updatePositionsWithVelocities << <1, 512 >> > (dev_positions, dev_velocities, boidRadius);
+	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
+}
+
+__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	if (boidIndex < numberOfBoids)
+	{
+		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
+		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
+		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
+		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector, cohesionVector, separationVector);
+		positions[boidIndex].x += velocities[boidIndex].x;
+		positions[boidIndex].y += velocities[boidIndex].y;
+	}
+}
+
+
+
+void loadPositionOffsetOnVBO()
+{
+	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
+}
+
+void endApplication()
+{
+	freeCUDADataStructures();
+	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
+	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+void freeCUDADataStructures()
+{
+	cudaFree(dev_positions);
+	cudaFree(dev_velocities);
+}
+
+void computeFPS()
+{
+	frameCount++;
+	fpsCount++;
+
+	if (fpsCount == fpsLimit)
+	{
+		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+		fpsCount = 0;
+		fpsLimit = (int)MAX(avgFPS, 1.f);
+
+		sdkResetTimer(&timer);
+	}
+
+	char fps[256];
+	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
+	glutSetWindowTitle(fps);
+}
+
+int randomMinusOneOrOne()
+{
+	return rand() % 2 * 2 - 1;;
+}
+
+void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
+{
+	glBindBuffer(1, *vbo);
+	glDeleteBuffers(1, vbo);
+
+	*vbo = 0;
 }
 
 void timerEvent(int value)
@@ -264,6 +251,29 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	}
 }
 
+
+void mouse(int button, int state, int x, int y)
+{
+	if (state == GLUT_DOWN)
+	{
+		mouse_buttons |= 1 << button;
+		sendFlockToMouseClick(x, y);
+	}
+	else if (state == GLUT_UP)
+	{
+		mouse_buttons = 0;
+	}
+
+	mouse_old_x = x;
+	mouse_old_y = y;
+}
+
+void sendFlockToMouseClick(int x, int y)
+{
+	float2 destination = mouseToWorldCoordinates(x, y);
+	setFlockDestination(destination);
+}
+
 float2 mouseToWorldCoordinates(int x, int y)
 {
 	float fX = (float)x / window_width;
@@ -281,26 +291,4 @@ void setFlockDestination(float2 destination)
 		velocities[i].y = destination.y - positions[i].y;
 	}
 	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
-}
-
-void sendFlockToMouseClick(int x, int y)
-{
-	float2 destination = mouseToWorldCoordinates(x, y);
-	setFlockDestination(destination);
-}
-
-void mouse(int button, int state, int x, int y)
-{
-	if (state == GLUT_DOWN)
-	{
-		mouse_buttons |= 1 << button;
-		sendFlockToMouseClick(x,y); 
-	}
-	else if (state == GLUT_UP)
-	{
-		mouse_buttons = 0;
-	}
-
-	mouse_old_x = x;
-	mouse_old_y = y;
 }
