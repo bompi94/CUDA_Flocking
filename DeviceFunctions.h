@@ -117,10 +117,10 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector)
 {
 	float alignmentWeight, cohesionWeight, separationWeight;
-	alignmentWeight = 3;
-	cohesionWeight = 3;
-	separationWeight = 3;
-	float boidSpeed = 0.003;
+	alignmentWeight = 15;
+	cohesionWeight = 12;
+	separationWeight = 15;
+	float boidSpeed = 0.008;
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
 		+ separationVector.x * separationWeight;

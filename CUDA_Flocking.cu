@@ -96,7 +96,7 @@ void createVBO(GLuint *vbo)
 	glEnableVertexAttribArray(0);
 
 	//loading colors
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 
 	//loading position offsets
@@ -144,6 +144,19 @@ void launchFlockingKernel()
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
+__device__ void screenOverflow(float2 *positions, int boidIndex)
+{
+	float limit = 0.99;
+	if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit)
+	{
+		positions[boidIndex].x *= -1;
+	}
+	if (positions[boidIndex].y > limit || positions[boidIndex].y < -limit)
+	{
+		positions[boidIndex].y *= -1;
+	}
+}
+
 __global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
@@ -157,16 +170,7 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
-
-		float limit = 1; 
-		if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit) 
-		{
-			positions[boidIndex].x *= -1;
-		}
-		if(positions[boidIndex].y > limit || positions[boidIndex].y < -limit) 
-		{
-			positions[boidIndex].y *= -1; 
-		}
+		screenOverflow(positions, boidIndex); 
 	}
 }
 
