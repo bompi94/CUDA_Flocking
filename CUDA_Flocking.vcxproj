@@ -122,6 +122,10 @@
     <ClInclude Include="Boid.h" />
     <ClInclude Include="DeviceFunctions.h" />
     <ClInclude Include="shader.h" />
+    <ClInclude Include="Utilities.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Utilities.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
