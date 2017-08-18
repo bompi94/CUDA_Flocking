@@ -81,13 +81,6 @@ void preparePositionsAndVelocitiesArray()
 
 void createVBO(GLuint *vbo)
 {
-	float quadVertices[] = {
-		// positions     // colors
-		0.0f,  0.05f,  1.0f, 0.0f, 0.0f,
-		0.02f, -0.02f,  0.0f, 1.0f, 0.0f,
-		-0.02f, -0.02f,  0.0f, 0.0f, 1.0f
-	};
-
 	assert(vbo);
 
 	//vertices vbo
@@ -197,7 +190,6 @@ void computeFPS()
 
 		sdkResetTimer(&timer);
 	}
-
 	char fps[256];
 	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
 	glutSetWindowTitle(fps);

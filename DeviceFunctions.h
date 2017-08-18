@@ -5,7 +5,6 @@
 #include <vector_functions.h>
 #include "Boid.h"
 
-
 __device__ __host__ void DebugPrintFloat2(float2 vector)
 {
 	printf("%f %f \n", vector.x, vector.y);
@@ -118,10 +117,10 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector)
 {
 	float alignmentWeight, cohesionWeight, separationWeight;
-	alignmentWeight = 4;
-	cohesionWeight = 4;
-	separationWeight = 4;
-	float boidSpeed = 0.005;
+	alignmentWeight = 3;
+	cohesionWeight = 3;
+	separationWeight = 3;
+	float boidSpeed = 0.003;
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
 		+ separationVector.x * separationWeight;
