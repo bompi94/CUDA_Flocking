@@ -1,14 +1,15 @@
 #pragma once
-
-// CUDA helper functions
 #include <helper_cuda.h>         // helper functions for CUDA error check
 #include <helper_cuda_gl.h>      // helper functions for CUDA/GL interop
-
 #include <vector_types.h>
 #include <vector_functions.h>
-
 #include "Boid.h"
 
+
+__device__ __host__ void DebugPrintFloat2(float2 vector)
+{
+	printf("%f %f \n", vector.x, vector.y);
+}
 
 __device__ float distanceBetweenPoints(float2 point1, float2 point2)
 {
@@ -17,31 +18,32 @@ __device__ float distanceBetweenPoints(float2 point1, float2 point2)
 
 __device__ float2 vectorMultiplication(float2 vector, float scalar)
 {
- 
 	return make_float2(vector.x*scalar, vector.y*scalar);
 }
 
 __device__ float2 vectorDivision(float2 vector, float scalar)
 {
-
-	return make_float2(vector.x / scalar, vector.y / scalar);
+	if (scalar != 0)
+		return make_float2(vector.x / scalar, vector.y / scalar);
+	else
+		return vector; 
 }
 
 __device__ __host__ float2 normalizeVector(float2 vector)
 {
-	///normalization of velocity of the boid
 	float length = sqrtf((vector.x * vector.x) + (vector.y * vector.y));
-	vector.x /= length;
-	vector.y /= length;
-
-	return vector; 
+	if (length != 0) 
+	{
+		vector.x /= length;
+		vector.y /= length;
+	}
+	return vector;
 }
 
 __device__ float2 separation(int threadX, float2 *positions, float2 *velocities, float boidradius)
 {
 	float2 separationVector = make_float2(0, 0);
 	int cont = 0;
-
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		float2 point1, point2;
@@ -57,16 +59,10 @@ __device__ float2 separation(int threadX, float2 *positions, float2 *velocities,
 		}
 
 	}
-
-	separationVector.x /= cont;
-	separationVector.y /= cont;
-
+	separationVector = vectorDivision(separationVector, cont); 
 	separationVector.x *= -1;
 	separationVector.y *= -1;
-
-	///normalization of separation
 	separationVector = normalizeVector(separationVector);
-
 	return separationVector;
 }
 
@@ -74,7 +70,6 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 {
 	float2 cohesionVector = make_float2(0, 0);
 	int cont = 0;
-
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		float2 point1, point2;
@@ -89,14 +84,10 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 			cont++;
 		}
 	}
-
 	cohesionVector = vectorDivision(cohesionVector, cont);
-
 	cohesionVector.x -= positions[threadX].x;
 	cohesionVector.y -= positions[threadX].y;
-
 	cohesionVector = normalizeVector(cohesionVector);
-
 	return cohesionVector;
 }
 
@@ -104,25 +95,23 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius)
 {
 	float2 alignmentVector = make_float2(0, 0);
+
 	int cont = 0;
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		float2 point1, point2;
 		point1 = positions[threadX];
 		point2 = positions[i];
-
 		if (threadX != i &&  distanceBetweenPoints(point1, point2) < boidradius)
 		{
 			alignmentVector.x += velocities[i].x;
 			alignmentVector.y += velocities[i].y;
 			cont++;
+
 		}
 	}
-
 	alignmentVector = vectorDivision(alignmentVector, cont);
-
 	alignmentVector = normalizeVector(alignmentVector);
-
 	return alignmentVector;
 }
 
@@ -132,7 +121,7 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	alignmentWeight = 4;
 	cohesionWeight = 4;
 	separationWeight = 4;
-	float boidSpeed = 0.01;
+	float boidSpeed = 0.005;
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
 		+ separationVector.x * separationWeight;

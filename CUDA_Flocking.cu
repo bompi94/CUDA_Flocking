@@ -71,11 +71,11 @@ void preparePositionsAndVelocitiesArray()
 {
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		int a = randomMinusOneOrOne();
-		int b = randomMinusOneOrOne();
+		int a = randomMinusOneOrOneInt();
+		int b = randomMinusOneOrOneInt();
 		velocities[i] = make_float2(a*(float)(rand() % 10) / 50, b*(float)(rand() % 10) / 50);
 		velocities[i] = normalizeVector(velocities[i]);
-		positions[i] = make_float2(a*(float)(rand() % 10) / 50, b*(float)(rand() % 10) / 50);
+		positions[i] = make_float2(randomMinusOneOrOneFloat(), randomMinusOneOrOneFloat());
 	}
 }
 
@@ -147,7 +147,7 @@ void display()
 
 void launchFlockingKernel()
 {
-	updatePositionsWithVelocities << <1, 512 >> > (dev_positions, dev_velocities, boidRadius);
+	updatePositionsWithVelocities << <1, numberOfBoids >> > (dev_positions, dev_velocities, boidRadius);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
@@ -159,13 +159,12 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
 		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
 		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
-		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector, cohesionVector, separationVector);
+		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
+			cohesionVector, separationVector);
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
 	}
 }
-
-
 
 void loadPositionOffsetOnVBO()
 {
@@ -190,7 +189,6 @@ void computeFPS()
 {
 	frameCount++;
 	fpsCount++;
-
 	if (fpsCount == fpsLimit)
 	{
 		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
@@ -205,9 +203,14 @@ void computeFPS()
 	glutSetWindowTitle(fps);
 }
 
-int randomMinusOneOrOne()
+int randomMinusOneOrOneInt()
 {
-	return rand() % 2 * 2 - 1;;
+	return (int)rand() % 2 * 2 - 1;;
+}
+
+float randomMinusOneOrOneFloat()
+{
+	return (float)(rand() % 101) / 100 * 2 - 1;;
 }
 
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
@@ -248,9 +251,8 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		glutDestroyWindow(glutGetWindow());
 		return;
 #endif
-	}
 }
-
+}
 
 void mouse(int button, int state, int x, int y)
 {
@@ -277,17 +279,17 @@ void sendFlockToMouseClick(int x, int y)
 float2 mouseToWorldCoordinates(int x, int y)
 {
 	float fX = (float)x / window_width;
-	float fY = (float)y / window_width; 
-	fX = fX * 2 - 1; 
-	fY = -fY * 2 +1; 
-	return make_float2(fX, fY); 
+	float fY = (float)y / window_width;
+	fX = fX * 2 - 1;
+	fY = -fY * 2 + 1;
+	return make_float2(fX, fY);
 }
 
 void setFlockDestination(float2 destination)
 {
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		velocities[i].x = destination.x - positions[i].x; 
+		velocities[i].x = destination.x - positions[i].x;
 		velocities[i].y = destination.y - positions[i].y;
 	}
 	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
