@@ -67,6 +67,7 @@ int timecount = 0;
 //boid i is defined by positions[i] and velocities[i]
 float2 positions[numberOfBoids];
 float2 velocities[numberOfBoids];
+
 float2 *dev_positions, *dev_velocities;
 
 void display();
@@ -89,7 +90,7 @@ void endApplication();
 void computeFPS(); 
 int randomMinusOneOrOneInt();
 float randomMinusOneOrOneFloat();
-__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius);
+__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -97,7 +98,7 @@ void loadPositionOnVBO();
 void prepareObstacles(); 
 void drawObstacles();
 void drawBoids();
-void DrawCircle(float2 center, float r, int num_segments);
+void drawCircle(float2 center, float r, int num_segments);
 __device__ void screenOverflow(float2 *positions, int boidIndex);
 void prepareBoidCUDADataStructures(); 
 void prepareObstaclesCUDADataStructures();

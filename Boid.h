@@ -3,7 +3,7 @@
 #include <vector_functions.h>
 
 float boidRadius = .03;
-const unsigned int numberOfBoids = 4096;
+const unsigned int numberOfBoids = 1024;
 float boidVertices[] = {
 	// positions     // colors
 	0.0f,  0.01f,  1.0f, 0.0f, 0.0f,

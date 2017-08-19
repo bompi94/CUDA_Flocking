@@ -7,8 +7,23 @@
 #include <vector_functions.h>
 #include "Boid.h"
 
-float* dev_obstacleRadii; 
-float2* dev_obstacleCenters; 
+class Obstacle
+{
+public:
+	float2 center;
+	float radius;
+	bool initialized = false;
+};
+
+const unsigned int numberOfObstacles = 1;
+float2 obstacleCenters[numberOfObstacles];
+float obstacleRadii[numberOfObstacles];
+
+__device__ Obstacle findMostThreateningObstacle(float2 position, float2 ahead, float2 ahead2, float2* obstacleCenters, float* obstacleRadii);
+__device__ bool lineIntersectsCircle(float2 position, float2 ahead, float2 ahead2, float2 obstacleCenter, float obstacleRadius);
+
+float* dev_obstacleRadii;
+float2* dev_obstacleCenters;
 
 __device__ __host__ void DebugPrintFloat2(float2 vector)
 {
@@ -30,13 +45,13 @@ __device__ float2 vectorDivision(float2 vector, float scalar)
 	if (scalar != 0)
 		return make_float2(vector.x / scalar, vector.y / scalar);
 	else
-		return vector; 
+		return vector;
 }
 
 __device__ __host__ float2 normalizeVector(float2 vector)
 {
 	float length = sqrtf((vector.x * vector.x) + (vector.y * vector.y));
-	if (length != 0) 
+	if (length != 0)
 	{
 		vector.x /= length;
 		vector.y /= length;
@@ -63,7 +78,7 @@ __device__ float2 separation(int threadX, float2 *positions, float2 *velocities,
 		}
 
 	}
-	separationVector = vectorDivision(separationVector, cont); 
+	separationVector = vectorDivision(separationVector, cont);
 	separationVector.x *= -1;
 	separationVector.y *= -1;
 	separationVector = normalizeVector(separationVector);
@@ -111,7 +126,6 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 			alignmentVector.x += velocities[i].x;
 			alignmentVector.y += velocities[i].y;
 			cont++;
-
 		}
 	}
 	alignmentVector = vectorDivision(alignmentVector, cont);
@@ -119,21 +133,68 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 	return alignmentVector;
 }
 
-__device__ float2 obstacleAvoidance()
+__device__ __host__ float2 vectorSum(float2 vector1, float2 vector2)
 {
-	float x, y; 
-	x = 0;
-	y = 0; 
-	return make_float2(x, y); 
+	return make_float2(vector1.x + vector2.x, vector1.y + vector2.y); 
 }
 
-__device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector)
+__device__ float2 obstacleAvoidance(float2 position, float2 velocity, float2 * obstacleCenters, float* obstacleRadii)
 {
-	float alignmentWeight, cohesionWeight, separationWeight;
+	const float MAX_SEE_AHEAD = 1;
+	const float MAX_AVOID_FORCE = 1; 
+	float2 ahead = vectorSum(position, vectorMultiplication(normalizeVector(velocity), MAX_SEE_AHEAD));
+	ahead = normalizeVector(ahead); 
+	float2 ahead2 = vectorMultiplication(vectorSum(position, vectorMultiplication(normalizeVector(velocity), MAX_SEE_AHEAD)), 0.5);
+	ahead2 = normalizeVector(ahead2); 
+	Obstacle o = findMostThreateningObstacle(position, ahead, ahead2, obstacleCenters, obstacleRadii); 
+	float2 avoidance = make_float2(0, 0); 
+
+	if (o.initialized) {
+		avoidance.x = (ahead.x) - o.center.x;
+		avoidance.y = (ahead.y) - o.center.y;
+
+		avoidance = normalizeVector(avoidance); 
+	}
+	else {
+		avoidance = vectorMultiplication(avoidance, 0); // nullify the avoidance force
+	}
+	return avoidance;
+}
+
+__device__ Obstacle findMostThreateningObstacle(float2 position, float2 ahead, float2 ahead2, float2* obstacleCenters, float* obstacleRadii)
+{
+	Obstacle mostThreatening;
+	for (int i = 0; i < numberOfObstacles; i++)
+	{
+		Obstacle temp;
+		temp.center = obstacleCenters[i];
+		temp.radius = obstacleRadii[i]; 
+		bool collision = lineIntersectsCircle(position, ahead, ahead2, temp.center, temp.radius); 
+		if (collision && (!mostThreatening.initialized || distanceBetweenPoints(position, temp.center) < distanceBetweenPoints(position, mostThreatening.center)))
+		{ 
+			mostThreatening = temp;
+			mostThreatening.initialized = true; 
+		}
+	}
+	return mostThreatening;
+}
+
+__device__ bool lineIntersectsCircle(float2 position, float2 ahead, float2 ahead2, float2 obstacleCenter, float obstacleRadius)
+{
+	bool aheadInObstacle = distanceBetweenPoints(obstacleCenter, ahead) <= obstacleRadius;
+	bool ahead2inObstacle = distanceBetweenPoints(obstacleCenter, ahead2) <= obstacleRadius;
+	return aheadInObstacle || ahead2inObstacle;
+}
+
+__device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector, float2 obstacleAvoidanceVector)
+{
+	float alignmentWeight, cohesionWeight, separationWeight, obstacleAvoidanceWeight; 
 	alignmentWeight = 15;
 	cohesionWeight = 12;
 	separationWeight = 15;
+	obstacleAvoidanceWeight = 10; 
 	float boidSpeed = 0.005;
+
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
 		+ separationVector.x * separationWeight;
@@ -141,9 +202,8 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 		+ cohesionVector.y * cohesionWeight
 		+ separationVector.y * separationWeight;
 
-	float2 obstacleAvoidanceVector = obstacleAvoidance(); 
-	velocityOfTheBoid.x += obstacleAvoidanceVector.x; 
-	velocityOfTheBoid.y += obstacleAvoidanceVector.y;
+	velocityOfTheBoid.x += obstacleAvoidanceVector.x * obstacleAvoidanceWeight;
+	velocityOfTheBoid.y += obstacleAvoidanceVector.y * obstacleAvoidanceWeight;
 
 	velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
 	velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed);
