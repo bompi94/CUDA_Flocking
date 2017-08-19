@@ -7,6 +7,9 @@
 #include <vector_functions.h>
 #include "Boid.h"
 
+float* dev_obstacleRadii; 
+float2* dev_obstacleCenters; 
+
 __device__ __host__ void DebugPrintFloat2(float2 vector)
 {
 	printf("%f %f \n", vector.x, vector.y);
@@ -116,6 +119,14 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 	return alignmentVector;
 }
 
+__device__ float2 obstacleAvoidance()
+{
+	float x, y; 
+	x = 0;
+	y = 0; 
+	return make_float2(x, y); 
+}
+
 __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector)
 {
 	float alignmentWeight, cohesionWeight, separationWeight;
@@ -129,6 +140,11 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	velocityOfTheBoid.y += alignmentVector.y * alignmentWeight
 		+ cohesionVector.y * cohesionWeight
 		+ separationVector.y * separationWeight;
+
+	float2 obstacleAvoidanceVector = obstacleAvoidance(); 
+	velocityOfTheBoid.x += obstacleAvoidanceVector.x; 
+	velocityOfTheBoid.y += obstacleAvoidanceVector.y;
+
 	velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
 	velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed);
 	return velocityOfTheBoid;

@@ -98,5 +98,8 @@ void prepareObstacles();
 void drawObstacles();
 void drawBoids();
 void DrawCircle(float2 center, float r, int num_segments);
+__device__ void screenOverflow(float2 *positions, int boidIndex);
+void prepareBoidCUDADataStructures(); 
+void prepareObstaclesCUDADataStructures();
 
 #endif //CUDAFLOCKING_H

@@ -125,7 +125,7 @@
     <ClInclude Include="CudaFlocking.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Utilities.cpp" />
+    <ClCompile Include="Helper.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

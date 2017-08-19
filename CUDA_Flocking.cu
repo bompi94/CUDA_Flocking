@@ -1,7 +1,9 @@
-#include "CudaFlocking.h"
+#ifndef CUDAFLOCKING_H
+	#include "CudaFlocking.h"
+#endif
 
 const unsigned int numberOfObstacles = 3; 
-float2 obstaclePositions[numberOfObstacles]; 
+float2 obstacleCenters[numberOfObstacles]; 
 float obstacleRadii[numberOfObstacles]; 
 
 int main(int argc, char **argv)
@@ -88,7 +90,7 @@ void prepareObstacles()
 {
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
-		obstaclePositions[i] = make_float2(randomMinusOneOrOneFloat(), randomMinusOneOrOneFloat());
+		obstacleCenters[i] = make_float2(randomMinusOneOrOneFloat(), randomMinusOneOrOneFloat());
 		obstacleRadii[i] = 0.05;
 	}
 }
@@ -129,10 +131,24 @@ void createVBO(GLuint *vbo)
 
 void prepareCUDADataStructures()
 {
+	prepareBoidCUDADataStructures(); 
+	prepareObstaclesCUDADataStructures(); 
+}
+
+void prepareBoidCUDADataStructures()
+{
 	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
 	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
 	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
 	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+}
+
+void prepareObstaclesCUDADataStructures()
+{
+	cudaMalloc((void**)&dev_obstacleCenters, numberOfObstacles * sizeof(float2));
+	cudaMemcpy(dev_obstacleCenters, obstacleCenters, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&dev_obstacleRadii, numberOfObstacles * sizeof(float));
+	cudaMemcpy(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice);
 }
 
 void display()
@@ -140,7 +156,8 @@ void display()
 	sdkStartTimer(&timer);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(VAO);
-	drawObstacles(); 
+	drawObstacles();
+	calculateBoidsPositions();
 	drawBoids(); 
 	glutSwapBuffers();
 	sdkStopTimer(&timer);
@@ -151,7 +168,7 @@ void drawObstacles()
 {
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
-		float2 center = obstaclePositions[i];
+		float2 center = obstacleCenters[i];
 		float radius = obstacleRadii[i]; 
 		DrawCircle(center, radius, 100);
 	}
@@ -170,30 +187,16 @@ void DrawCircle(float2 center, float r, int num_segments)
 	glEnd();
 }
 
-void drawBoids()
-{
-	calculateBoidsPositions();
-	loadPositionOnVBO();
-	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
-}
-
 void calculateBoidsPositions()
 {
 	updatePositionsWithVelocities << <numberOfBoids / 256 + 1, 256 >> > (dev_positions, dev_velocities, boidRadius);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
-__device__ void screenOverflow(float2 *positions, int boidIndex)
+void drawBoids()
 {
-	float limit = 0.99;
-	if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit)
-	{
-		positions[boidIndex].x *= -1;
-	}
-	if (positions[boidIndex].y > limit || positions[boidIndex].y < -limit)
-	{
-		positions[boidIndex].y *= -1;
-	}
+	loadPositionOnVBO();
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 }
 
 __global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius)
@@ -209,6 +212,19 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
 		screenOverflow(positions, boidIndex);
+	}
+}
+
+__device__ void screenOverflow(float2 *positions, int boidIndex)
+{
+	float limit = 0.99;
+	if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit)
+	{
+		positions[boidIndex].x *= -1;
+	}
+	if (positions[boidIndex].y > limit || positions[boidIndex].y < -limit)
+	{
+		positions[boidIndex].y *= -1;
 	}
 }
 
