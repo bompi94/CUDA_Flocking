@@ -1,4 +1,8 @@
-#include "Utilities.h"
+#include "CudaFlocking.h"
+
+const unsigned int numberOfObstacles = 3; 
+float2 obstaclePositions[numberOfObstacles]; 
+float obstacleRadii[numberOfObstacles]; 
 
 int main(int argc, char **argv)
 {
@@ -16,6 +20,7 @@ void startApplication(int argc, char **argv)
 	initGL(&argc, argv);
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
+	prepareObstacles(); 
 	createVBO(&vbo);
 	prepareCUDADataStructures();
 }
@@ -25,7 +30,7 @@ bool initGL(int *argc, char **argv)
 	glutInit(argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(window_width, window_height);
-	glutCreateWindow("Cuda GL Interop (VBO)");
+	glutCreateWindow("CUDA flocking");
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
 	glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
@@ -79,6 +84,15 @@ void preparePositionsAndVelocitiesArray()
 	}
 }
 
+void prepareObstacles()
+{
+	for (int i = 0; i < numberOfObstacles; i++)
+	{
+		obstaclePositions[i] = make_float2(randomMinusOneOrOneFloat(), randomMinusOneOrOneFloat());
+		obstacleRadii[i] = 0.05;
+	}
+}
+
 void createVBO(GLuint *vbo)
 {
 	assert(vbo);
@@ -89,7 +103,7 @@ void createVBO(GLuint *vbo)
 	glBindVertexArray(VAO);
 
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices[0], GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(boidVertices), &boidVertices[0], GL_DYNAMIC_DRAW);
 
 	//loading positions of vertices
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -126,15 +140,44 @@ void display()
 	sdkStartTimer(&timer);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(VAO);
-	launchFlockingKernel();
-	loadPositionOffsetOnVBO();
-	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
+	drawObstacles(); 
+	drawBoids(); 
 	glutSwapBuffers();
 	sdkStopTimer(&timer);
 	computeFPS();
 }
 
-void launchFlockingKernel()
+void drawObstacles()
+{
+	for (int i = 0; i < numberOfObstacles; i++)
+	{
+		float2 center = obstaclePositions[i];
+		float radius = obstacleRadii[i]; 
+		DrawCircle(center, radius, 100);
+	}
+}
+
+void DrawCircle(float2 center, float r, int num_segments)
+{
+	glBegin(GL_LINE_LOOP);
+	for (int ii = 0; ii < num_segments; ii++)
+	{
+		float theta = 2.0f * 3.1415926f * float(ii) / float(num_segments);//get the current angle
+		float x = r * cosf(theta);//calculate the x component
+		float y = r * sinf(theta);//calculate the y component
+		glVertex2f(x + center.x, y + center.y);//output vertex
+	}
+	glEnd();
+}
+
+void drawBoids()
+{
+	calculateBoidsPositions();
+	loadPositionOnVBO();
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
+}
+
+void calculateBoidsPositions()
 {
 	updatePositionsWithVelocities << <numberOfBoids / 256 + 1, 256 >> > (dev_positions, dev_velocities, boidRadius);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
@@ -169,7 +212,7 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 	}
 }
 
-void loadPositionOffsetOnVBO()
+void loadPositionOnVBO()
 {
 	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);

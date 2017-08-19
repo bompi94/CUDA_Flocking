@@ -122,7 +122,7 @@
     <ClInclude Include="Boid.h" />
     <ClInclude Include="DeviceFunctions.h" />
     <ClInclude Include="shader.h" />
-    <ClInclude Include="Utilities.h" />
+    <ClInclude Include="CudaFlocking.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Utilities.cpp" />

@@ -1,5 +1,5 @@
-#ifndef UTILITIES_H
-#define UTILITIES_H
+#ifndef CUDAFLOCKING_H
+#define CUDAFLOCKING_H
 
 // Utilities and timing functions
 #include <helper_functions.h>    // includes cuda.h and cuda_runtime_api.h
@@ -39,8 +39,6 @@
 
 const unsigned int window_width = 512;
 const unsigned int window_height = 512;
-const unsigned int mesh_width = 256;
-const unsigned int mesh_height = 256;
 const char *windowTitle = "CUDA_Flocking";
 
 int fpsCount = 0;        // FPS count for averaging
@@ -81,7 +79,7 @@ void createVBO(GLuint *vbo);
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res);
 void startApplication(int argc, char ** argv);
 void endApplication();
-void launchFlockingKernel(); 
+void calculateBoidsPositions(); 
 bool initGL(int *argc, char **argv);
 void registerGlutCallbacks();
 void preparePositionsAndVelocitiesArray();
@@ -95,6 +93,10 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
-void loadPositionOffsetOnVBO();
+void loadPositionOnVBO();
+void prepareObstacles(); 
+void drawObstacles();
+void drawBoids();
+void DrawCircle(float2 center, float r, int num_segments);
 
-#endif
+#endif //CUDAFLOCKING_H
