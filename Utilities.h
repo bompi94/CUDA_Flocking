@@ -1,5 +1,5 @@
-#ifndef UTILITIES
-#define UTILITIES
+#ifndef UTILITIES_H
+#define UTILITIES_H
 
 // Utilities and timing functions
 #include <helper_functions.h>    // includes cuda.h and cuda_runtime_api.h

@@ -126,11 +126,7 @@ void display()
 	sdkStartTimer(&timer);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(VAO);
-	timecount++;
-	if (timecount >= movementTime) {
-		launchFlockingKernel();
-		timecount = 0;
-	}
+	launchFlockingKernel();
 	loadPositionOffsetOnVBO();
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 	glutSwapBuffers();
@@ -140,7 +136,7 @@ void display()
 
 void launchFlockingKernel()
 {
-	updatePositionsWithVelocities << <1, numberOfBoids >> > (dev_positions, dev_velocities, boidRadius);
+	updatePositionsWithVelocities << <numberOfBoids / 256 + 1, 256 >> > (dev_positions, dev_velocities, boidRadius);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
@@ -167,10 +163,9 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector);
-
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
-		screenOverflow(positions, boidIndex); 
+		screenOverflow(positions, boidIndex);
 	}
 }
 

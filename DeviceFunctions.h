@@ -1,4 +1,6 @@
-#pragma once
+#ifndef DEVICEFUNCTIONS_H
+#define DEVICEFUNCTIONS_H
+
 #include <helper_cuda.h>         // helper functions for CUDA error check
 #include <helper_cuda_gl.h>      // helper functions for CUDA/GL interop
 #include <vector_types.h>
@@ -120,7 +122,7 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	alignmentWeight = 15;
 	cohesionWeight = 12;
 	separationWeight = 15;
-	float boidSpeed = 0.008;
+	float boidSpeed = 0.005;
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
 		+ separationVector.x * separationWeight;
@@ -131,3 +133,5 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed);
 	return velocityOfTheBoid;
 }
+
+#endif // !DEVICEFUNCTIONS_H
