@@ -15,7 +15,7 @@ public:
 	bool initialized = false;
 };
 
-const unsigned int numberOfObstacles = 1;
+const unsigned int numberOfObstacles = 3;
 float2 obstacleCenters[numberOfObstacles];
 float obstacleRadii[numberOfObstacles];
 
@@ -141,15 +141,14 @@ __device__ __host__ float2 vectorSum(float2 vector1, float2 vector2)
 
 __device__ float2 obstacleAvoidance(float2 position, float2 velocity, float2 * obstacleCenters, float* obstacleRadii)
 {
-	float2 ahead = vectorSum(position, velocity);
+	float2 ahead = vectorMultiplication(vectorSum(position, velocity), 0.5);
 	float2 ahead2 = vectorMultiplication(vectorSum(position, velocity), 0.5);
 	Obstacle o = findMostThreateningObstacle(position, ahead, ahead2, obstacleCenters, obstacleRadii); 
 	float2 avoidance = make_float2(0, 0); 
 	if (o.initialized) {
-		avoidance.x = velocity.x; 
-		avoidance.y = velocity.y; 
+		avoidance.x = ahead.x - o.center.x; 
+		avoidance.y = ahead.y - o.center.y;
 		avoidance = normalizeVector(avoidance); 
-		printf("avoiding %f %f \n", avoidance.x, avoidance.y);
 	}
 	else {
 		avoidance = vectorMultiplication(avoidance, 0); // nullify the avoidance force
@@ -187,7 +186,7 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	float alignmentWeight, cohesionWeight, separationWeight, obstacleAvoidanceWeight; 
 	alignmentWeight = 100;
 	cohesionWeight = 100;
-	separationWeight = 105;
+	separationWeight = 104;
 	obstacleAvoidanceWeight = 100; 
 	float boidSpeed = 0.005;
 
@@ -196,11 +195,10 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 		+ separationVector.x * separationWeight;
 	velocityOfTheBoid.y += alignmentVector.y * alignmentWeight
 		+ cohesionVector.y * cohesionWeight
-		+ separationVector.y * separationWeight;
-
+		+ separationVector.y * separationWeight; 
+	
 	velocityOfTheBoid.x += obstacleAvoidanceVector.x * obstacleAvoidanceWeight;
 	velocityOfTheBoid.y += obstacleAvoidanceVector.y * obstacleAvoidanceWeight;
-
 	velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
 	velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed);
 	return velocityOfTheBoid;

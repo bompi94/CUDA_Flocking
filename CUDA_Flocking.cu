@@ -86,8 +86,8 @@ void prepareObstacles()
 {
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
-		obstacleCenters[i] = make_float2(0, 0);
-		obstacleRadii[i] = 0.05;
+		obstacleCenters[i] = make_float2(randomMinusOneOrOneFloat()/2, randomMinusOneOrOneFloat()/2);
+		obstacleRadii[i] = 0.02;
 	}
 }
 
@@ -172,13 +172,14 @@ void drawObstacles()
 
 void drawCircle(float2 center, float r, int num_segments)
 {
+	r *= 2;
 	glBegin(GL_LINE_LOOP);
 	for (int ii = 0; ii < num_segments; ii++)
 	{
 		float theta = 2.0f * 3.1415926f * float(ii) / float(num_segments);//get the current angle
 		float x = r * cosf(theta);//calculate the x component
 		float y = r * sinf(theta);//calculate the y component
-		glVertex2f(x + center.x, y + center.y);//output vertex
+		glVertex2f(x + center.x*2, y + center.y*2);//output vertex
 	}
 	glEnd();
 }
