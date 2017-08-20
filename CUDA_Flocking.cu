@@ -203,7 +203,7 @@ __global__  void updatePositionsWithVelocities(float2 *positions, float2 *veloci
 		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
 		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
 		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
-		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii); 
+		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector, obstacleAvoidanceVector);
 		positions[boidIndex].x += velocities[boidIndex].x;

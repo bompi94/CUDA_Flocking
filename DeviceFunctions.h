@@ -94,7 +94,7 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 		float2 point1, point2;
 		point1 = positions[threadX];
 		point2 = positions[i];
-		float distance = sqrtf(pow(point2.x - point1.x, 2) + pow(point2.y - point1.y, 2));
+		float distance = distanceBetweenPoints(point1, point2); 
 
 		if (threadX != i &&  distance < boidradius)
 		{
@@ -103,10 +103,12 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 			cont++;
 		}
 	}
-	cohesionVector = vectorDivision(cohesionVector, cont);
-	cohesionVector.x -= positions[threadX].x;
-	cohesionVector.y -= positions[threadX].y;
-	cohesionVector = normalizeVector(cohesionVector);
+	if (cont != 0) {
+		cohesionVector = vectorDivision(cohesionVector, cont);
+		cohesionVector.x -= positions[threadX].x;
+		cohesionVector.y -= positions[threadX].y;
+		cohesionVector = normalizeVector(cohesionVector);
+	}
 	return cohesionVector;
 }
 
@@ -189,10 +191,10 @@ __device__ bool lineIntersectsCircle(float2 position, float2 ahead, float2 ahead
 __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector, float2 obstacleAvoidanceVector)
 {
 	float alignmentWeight, cohesionWeight, separationWeight, obstacleAvoidanceWeight; 
-	alignmentWeight = 15;
-	cohesionWeight = 12;
-	separationWeight = 15;
-	obstacleAvoidanceWeight = 10; 
+	alignmentWeight = 100;
+	cohesionWeight = 100;
+	separationWeight = 105;
+	obstacleAvoidanceWeight = 100; 
 	float boidSpeed = 0.005;
 
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
