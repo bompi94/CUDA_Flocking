@@ -112,7 +112,6 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 	return cohesionVector;
 }
 
-
 __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius)
 {
 	float2 alignmentVector = make_float2(0, 0);
@@ -142,20 +141,15 @@ __device__ __host__ float2 vectorSum(float2 vector1, float2 vector2)
 
 __device__ float2 obstacleAvoidance(float2 position, float2 velocity, float2 * obstacleCenters, float* obstacleRadii)
 {
-	const float MAX_SEE_AHEAD = 1;
-	const float MAX_AVOID_FORCE = 1; 
-	float2 ahead = vectorSum(position, vectorMultiplication(normalizeVector(velocity), MAX_SEE_AHEAD));
-	ahead = normalizeVector(ahead); 
-	float2 ahead2 = vectorMultiplication(vectorSum(position, vectorMultiplication(normalizeVector(velocity), MAX_SEE_AHEAD)), 0.5);
-	ahead2 = normalizeVector(ahead2); 
+	float2 ahead = vectorSum(position, velocity);
+	float2 ahead2 = vectorMultiplication(vectorSum(position, velocity), 0.5);
 	Obstacle o = findMostThreateningObstacle(position, ahead, ahead2, obstacleCenters, obstacleRadii); 
 	float2 avoidance = make_float2(0, 0); 
-
 	if (o.initialized) {
-		avoidance.x = (ahead.x) - o.center.x;
-		avoidance.y = (ahead.y) - o.center.y;
-
+		avoidance.x = velocity.x; 
+		avoidance.y = velocity.y; 
 		avoidance = normalizeVector(avoidance); 
+		printf("avoiding %f %f \n", avoidance.x, avoidance.y);
 	}
 	else {
 		avoidance = vectorMultiplication(avoidance, 0); // nullify the avoidance force
