@@ -1,7 +1,7 @@
 #include "CudaFlocking.h"
 #include "Graphics.h"
 
-Graphics graphics; 
+Graphics graphics;
 
 int main(int argc, char **argv)
 {
@@ -14,14 +14,12 @@ void startApplication(int argc, char **argv)
 {
 	pArgc = &argc;
 	pArgv = argv;
-	printf("%s starting...\n", windowTitle);
+	printf("%s starting...\n", graphics.windowTitle);
 	sdkCreateTimer(&timer);
-
 	graphics.initialize(&argc, argv);
-
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
-	prepareObstacles(); 
+	prepareObstacles();
 	createVBO(&vbo);
 	prepareCUDADataStructures();
 }
@@ -51,7 +49,7 @@ void prepareObstacles()
 {
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
-		obstacleCenters[i] = make_float2(randomMinusOneOrOneFloat()/2, randomMinusOneOrOneFloat()/2);
+		obstacleCenters[i] = make_float2(randomMinusOneOrOneFloat() / 2, randomMinusOneOrOneFloat() / 2);
 		obstacleRadii[i] = obstacleRadius;
 	}
 }
@@ -86,14 +84,12 @@ void createVBO(GLuint *vbo)
 
 	//this is necessary for instancing in openGL
 	glVertexAttribDivisorARB(2, 1);
-
-	SDK_CHECK_ERROR_GL();
 }
 
 void prepareCUDADataStructures()
 {
-	prepareBoidCUDADataStructures(); 
-	prepareObstaclesCUDADataStructures(); 
+	prepareBoidCUDADataStructures();
+	prepareObstaclesCUDADataStructures();
 }
 
 void prepareBoidCUDADataStructures()
@@ -119,7 +115,7 @@ void display()
 	glBindVertexArray(VAO);
 	drawObstacles();
 	calculateBoidsPositions();
-	drawBoids(); 
+	drawBoids();
 	glutSwapBuffers();
 	sdkStopTimer(&timer);
 	computeFPS();
@@ -130,7 +126,7 @@ void drawObstacles()
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
 		float2 center = obstacleCenters[i];
-		float radius = obstacleRadii[i]; 
+		float radius = obstacleRadii[i];
 		graphics.drawCircle(center, radius, 100);
 	}
 }
@@ -186,7 +182,7 @@ void loadPositionOnVBO()
 void endApplication()
 {
 	freeCUDADataStructures();
-	printf("%s completed, returned %s\n", windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
+	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
@@ -194,8 +190,8 @@ void freeCUDADataStructures()
 {
 	cudaFree(dev_positions);
 	cudaFree(dev_velocities);
-	cudaFree(dev_obstacleCenters); 
-	cudaFree(dev_obstacleRadii); 
+	cudaFree(dev_obstacleCenters);
+	cudaFree(dev_obstacleRadii);
 }
 
 void computeFPS()

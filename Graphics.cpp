@@ -47,3 +47,5 @@ void Graphics::drawCircle(float2 center, float r, int num_segments)
 	}
 	glEnd();
 }
+
+

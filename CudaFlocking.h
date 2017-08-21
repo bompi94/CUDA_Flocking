@@ -39,7 +39,6 @@
 
 const unsigned int window_width = 512;
 const unsigned int window_height = 512;
-const char *windowTitle = "CUDA_Flocking";
 
 int fpsCount = 0;        // FPS count for averaging
 int fpsLimit = 1;        // FPS limit for sampling
@@ -60,7 +59,6 @@ GLuint translationsVBO;
 unsigned int VAO;
 int *pArgc = NULL;
 char **pArgv = NULL;
-Shader* shPointer;
 float2 *pos;
 int movementTime = 1;
 int timecount = 0;

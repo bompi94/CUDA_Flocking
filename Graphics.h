@@ -11,10 +11,13 @@ class Graphics
 public:
 	bool initialize(int *argc, char **argv);
 	void drawCircle(float2 center, float r, int num_segments);
+
+	const char *windowTitle = "CUDA_Flocking";
+
+
 private: 
 	const unsigned int window_width = 512;
 	const unsigned int window_height = 512;
-	const char *windowTitle = "CUDA_Flocking";
 	Shader* shPointer; 
 };
 
