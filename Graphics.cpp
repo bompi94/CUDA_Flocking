@@ -48,4 +48,61 @@ void Graphics::drawCircle(float2 center, float r, int num_segments)
 	glEnd();
 }
 
+void Graphics::createGLStructures(GLuint *vbo, GLuint *VAO)
+{
+	assert(vbo);
+	glGenVertexArrays(1, VAO);
+	glGenBuffers(1, vbo);
+	glBindVertexArray(*VAO);
+}
+
+void Graphics::saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int numberOfBoids)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+	glBufferData(GL_ARRAY_BUFFER, numberOfBoids * sizeof(float), &boidVertices[0], GL_DYNAMIC_DRAW);
+}
+
+void Graphics::loadBoidsVertices(GLuint * vbo)
+{
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+}
+
+void Graphics::loadBoidsColor(GLuint * vbo)
+{
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+}
+
+void Graphics::loadBoidsPosition(GLuint * vbo, GLuint* translationsVBO, float2 * positions, int numberOfBoids)
+{
+	glGenBuffers(1, translationsVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, *translationsVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glEnableVertexAttribArray(2);
+}
+
+void Graphics::allowInstancing()
+{
+	glVertexAttribDivisorARB(2, 1);
+}
+
+void Graphics::drawObstacles(int numberOfObstacles, float2 * obstacleCenters, float * obstacleRadii)
+{
+	for (int i = 0; i < numberOfObstacles; i++)
+	{
+		float2 center = obstacleCenters[i];
+		float radius = obstacleRadii[i];
+		drawCircle(center, radius, 100);
+	}
+}
+
+void Graphics::drawBoids(int numberOfBoids, GLuint * translationsVBO, float2 * positions)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, *translationsVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
+}
+
 

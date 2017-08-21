@@ -1,5 +1,7 @@
 #include "CudaFlocking.h"
+
 #include "Graphics.h"
+#include "Helper.h"
 
 Graphics graphics;
 
@@ -20,7 +22,7 @@ void startApplication(int argc, char **argv)
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
-	createVBO(&vbo);
+	prepareGraphicsToRenderBoids(&vbo);
 	prepareCUDADataStructures();
 }
 
@@ -37,11 +39,11 @@ void preparePositionsAndVelocitiesArray()
 {
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		int a = randomMinusOneOrOneInt();
-		int b = randomMinusOneOrOneInt();
+		int a = Helper::randomMinusOneOrOneInt();
+		int b = Helper::randomMinusOneOrOneInt();
 		velocities[i] = make_float2(a*(float)(rand() % 10) / 50, b*(float)(rand() % 10) / 50);
 		velocities[i] = normalizeVector(velocities[i]);
-		positions[i] = make_float2(randomMinusOneOrOneFloat(), randomMinusOneOrOneFloat());
+		positions[i] = make_float2(Helper::randomMinusOneOrOneFloat(), Helper::randomMinusOneOrOneFloat());
 	}
 }
 
@@ -49,41 +51,19 @@ void prepareObstacles()
 {
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
-		obstacleCenters[i] = make_float2(randomMinusOneOrOneFloat() / 2, randomMinusOneOrOneFloat() / 2);
+		obstacleCenters[i] = make_float2(Helper::randomMinusOneOrOneFloat() / 2, Helper::randomMinusOneOrOneFloat() / 2);
 		obstacleRadii[i] = obstacleRadius;
 	}
 }
 
-void createVBO(GLuint *vbo)
+void prepareGraphicsToRenderBoids(GLuint *vbo)
 {
-	assert(vbo);
-
-	//vertices vbo
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, vbo);
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(boidVertices), &boidVertices[0], GL_DYNAMIC_DRAW);
-
-	//loading positions of vertices
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	//loading colors
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-
-	//loading position offsets
-	glGenBuffers(1, &translationsVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
-
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	glEnableVertexAttribArray(2);
-
-	//this is necessary for instancing in openGL
-	glVertexAttribDivisorARB(2, 1);
+	graphics.createGLStructures(vbo, &VAO); 
+	graphics.saveBoidsRenderingData(vbo, boidVertices, numberOfBoids); 
+	graphics.loadBoidsVertices(vbo); 
+	graphics.loadBoidsColor(vbo); 
+	graphics.loadBoidsPosition(vbo, &translationsVBO, positions, numberOfBoids); 
+	graphics.allowInstancing(); 
 }
 
 void prepareCUDADataStructures()
@@ -108,39 +88,33 @@ void prepareObstaclesCUDADataStructures()
 	cudaMemcpy(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float), cudaMemcpyHostToDevice);
 }
 
-void display()
+void startOfFrame()
 {
 	sdkStartTimer(&timer);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(VAO);
-	drawObstacles();
-	calculateBoidsPositions();
-	drawBoids();
+}
+
+void endOfFrame()
+{
 	glutSwapBuffers();
 	sdkStopTimer(&timer);
 	computeFPS();
 }
 
-void drawObstacles()
+void display()
 {
-	for (int i = 0; i < numberOfObstacles; i++)
-	{
-		float2 center = obstacleCenters[i];
-		float radius = obstacleRadii[i];
-		graphics.drawCircle(center, radius, 100);
-	}
+	startOfFrame(); 
+	graphics.drawObstacles(numberOfObstacles, obstacleCenters, obstacleRadii);
+	calculateBoidsPositions();
+	graphics.drawBoids(numberOfBoids,&translationsVBO, positions);
+	endOfFrame(); 
 }
 
 void calculateBoidsPositions()
 {
 	updatePositionsWithVelocities << <numberOfBoids / 256 + 1, 256 >> > (dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
-}
-
-void drawBoids()
-{
-	loadPositionOnVBO();
-	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 }
 
 __global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii)
@@ -173,12 +147,6 @@ __device__ void screenOverflow(float2 *positions, int boidIndex)
 	}
 }
 
-void loadPositionOnVBO()
-{
-	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
-}
-
 void endApplication()
 {
 	freeCUDADataStructures();
@@ -209,16 +177,6 @@ void computeFPS()
 	char fps[256];
 	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
 	glutSetWindowTitle(fps);
-}
-
-int randomMinusOneOrOneInt()
-{
-	return (int)rand() % 2 * 2 - 1;;
-}
-
-float randomMinusOneOrOneFloat()
-{
-	return (float)(rand() % 101) / 100 * 2 - 1;;
 }
 
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)

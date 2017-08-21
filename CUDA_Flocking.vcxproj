@@ -122,6 +122,7 @@
     <ClInclude Include="Boid.h" />
     <ClInclude Include="DeviceFunctions.h" />
     <ClInclude Include="Graphics.h" />
+    <ClInclude Include="Helper.h" />
     <ClInclude Include="Obstacle.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="CudaFlocking.h" />

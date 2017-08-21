@@ -19,6 +19,9 @@
     <ClInclude Include="Graphics.h">
       <Filter>Code</Filter>
     </ClInclude>
+    <ClInclude Include="Helper.h">
+      <Filter>Code</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
