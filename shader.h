@@ -9,6 +9,8 @@
 #include <sstream>
 #include <iostream>
 
+#include <vector_functions.h>
+
 class Shader
 {
 public:

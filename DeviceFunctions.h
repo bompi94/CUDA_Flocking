@@ -6,18 +6,7 @@
 #include <vector_types.h>
 #include <vector_functions.h>
 #include "Boid.h"
-
-class Obstacle
-{
-public:
-	float2 center;
-	float radius;
-	bool initialized = false;
-};
-
-const unsigned int numberOfObstacles = 3;
-float2 obstacleCenters[numberOfObstacles];
-float obstacleRadii[numberOfObstacles];
+#include "Obstacle.h"
 
 __device__ Obstacle findMostThreateningObstacle(float2 position, float2 ahead, float2 ahead2, float2* obstacleCenters, float* obstacleRadii);
 __device__ bool lineIntersectsCircle(float2 position, float2 ahead, float2 ahead2, float2 obstacleCenter, float obstacleRadius);
@@ -188,7 +177,7 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	cohesionWeight = 100;
 	separationWeight = 104;
 	obstacleAvoidanceWeight = 100; 
-	float boidSpeed = 0.005;
+	float boidSpeed = 0.003;
 
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
