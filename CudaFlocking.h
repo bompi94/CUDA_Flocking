@@ -84,7 +84,7 @@ void prepareCUDADataStructures();
 void freeCUDADataStructures();
 void endApplication(); 
 void computeFPS(); 
-__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii);
+__global__  void updatePositionsWithVelocities1(float2 *positions, float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -92,5 +92,76 @@ void prepareObstacles();
 __device__ void screenOverflow(float2 *positions, int boidIndex);
 void prepareBoidCUDADataStructures(); 
 void prepareObstaclesCUDADataStructures();
+
+__global__  void updatePositionsWithVelocities1(float2 *positions, 
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	if (boidIndex < numberOfBoids)
+	{
+		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
+		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
+		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
+		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
+		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
+			cohesionVector, separationVector, obstacleAvoidanceVector);
+		positions[boidIndex].x += velocities[boidIndex].x;
+		positions[boidIndex].y += velocities[boidIndex].y;
+		screenOverflow(positions, boidIndex);
+	}
+}
+
+__global__ void updatePositionsWithVelocities2(float2 *positions, 
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii)
+{
+	unsigned int threadX = blockDim.x*blockIdx.x + threadIdx.x; 
+	unsigned int threadY = threadIdx.y; 
+	float boidSpeed = 0.003;
+	float2 vector; 
+	float weight;
+
+	if (threadX < numberOfBoids) {
+		if (threadY == 0) { //allineamento 
+			vector = alignment(threadX, positions, velocities, boidradius);
+			weight = 100;
+		}
+		if (threadY == 1) {//coesione
+			vector = cohesion(threadX, positions, velocities, boidradius);
+			weight = 100;
+		}
+		if (threadY == 2) {//separazione
+			vector = separation(threadX, positions, velocities, boidradius);
+			weight = 101;
+		}
+		if (threadY == 3) {//ostacoli
+			vector = obstacleAvoidance(positions[threadX], velocities[threadX], obstacleCenters, obstacleRadii);
+			weight = 100;
+		}
+
+		velocities[threadX].x += vector.x * weight;
+		velocities[threadX].y += vector.y * weight;
+
+		if (threadY == 3) {
+			velocities[threadX] = normalizeVector(velocities[threadX]);
+			velocities[threadX] = vectorMultiplication(velocities[threadX], boidSpeed);
+			positions[threadX].x += velocities[threadX].x;
+			positions[threadX].y += velocities[threadX].y;
+			screenOverflow(positions, threadX);
+		}
+	}
+}
+
+__device__ void screenOverflow(float2 *positions, int boidIndex)
+{
+	float limit = 0.99;
+	if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit)
+	{
+		positions[boidIndex].x *= -1;
+	}
+	if (positions[boidIndex].y > limit || positions[boidIndex].y < -limit)
+	{
+		positions[boidIndex].y *= -1;
+	}
+}
 
 #endif //CUDAFLOCKING_H

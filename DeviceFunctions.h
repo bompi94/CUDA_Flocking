@@ -175,7 +175,7 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	float alignmentWeight, cohesionWeight, separationWeight, obstacleAvoidanceWeight; 
 	alignmentWeight = 100;
 	cohesionWeight = 100;
-	separationWeight = 104;
+	separationWeight = 101;
 	obstacleAvoidanceWeight = 100; 
 	float boidSpeed = 0.003;
 

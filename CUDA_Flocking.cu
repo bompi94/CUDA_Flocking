@@ -111,43 +111,23 @@ void display()
 	endOfFrame(); 
 }
 
+void callKernel()
+{
+	int threadsPerBlock = 32;
+	//dim3 blockSize = dim3(threadsPerBlock, 4, 1);
+	//updatePositionsWithVelocities2 << <numberOfBoids / threadsPerBlock + 1, blockSize >> > (dev_positions, 
+	//	dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
+	updatePositionsWithVelocities1 << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> >
+		(dev_positions,	dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);;
+	//cudaDeviceSynchronize(); 
+}
+
 void calculateBoidsPositions()
 {
-	int threadsPerBlock = 32; 
-	printf("%d", threadsPerBlock); 
-	updatePositionsWithVelocities << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> > (dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
+	callKernel(); 
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
-__global__  void updatePositionsWithVelocities(float2 *positions, float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii)
-{
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	if (boidIndex < numberOfBoids)
-	{
-		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
-		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
-		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
-		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
-		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
-			cohesionVector, separationVector, obstacleAvoidanceVector);
-		positions[boidIndex].x += velocities[boidIndex].x;
-		positions[boidIndex].y += velocities[boidIndex].y;
-		screenOverflow(positions, boidIndex);
-	}
-}
-
-__device__ void screenOverflow(float2 *positions, int boidIndex)
-{
-	float limit = 0.99;
-	if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit)
-	{
-		positions[boidIndex].x *= -1;
-	}
-	if (positions[boidIndex].y > limit || positions[boidIndex].y < -limit)
-	{
-		positions[boidIndex].y *= -1;
-	}
-}
 
 void endApplication()
 {
