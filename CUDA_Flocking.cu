@@ -113,7 +113,9 @@ void display()
 
 void calculateBoidsPositions()
 {
-	updatePositionsWithVelocities << <numberOfBoids / 256 + 1, 256 >> > (dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
+	int threadsPerBlock = 32; 
+	printf("%d", threadsPerBlock); 
+	updatePositionsWithVelocities << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> > (dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
