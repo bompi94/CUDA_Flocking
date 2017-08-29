@@ -1,12 +1,14 @@
 #include "CudaFlocking.h"
 
 #include "Graphics.h"
+#include "Grid.h"
 #include "Helper.h"
 
 Graphics graphics;
 
 int main(int argc, char **argv)
 {
+	Grid g(4);
 	startApplication(argc, argv);
 	glutMainLoop();
 	endApplication();
@@ -114,12 +116,8 @@ void display()
 void callKernel()
 {
 	int threadsPerBlock = 32;
-	//dim3 blockSize = dim3(threadsPerBlock, 4, 1);
-	//updatePositionsWithVelocities2 << <numberOfBoids / threadsPerBlock + 1, blockSize >> > (dev_positions, 
-	//	dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
 	updatePositionsWithVelocities1 << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> >
-		(dev_positions,	dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);;
-	//cudaDeviceSynchronize(); 
+		(dev_positions,	dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
 }
 
 void calculateBoidsPositions()
@@ -127,7 +125,6 @@ void calculateBoidsPositions()
 	callKernel(); 
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
-
 
 void endApplication()
 {

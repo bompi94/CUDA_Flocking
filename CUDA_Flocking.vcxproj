@@ -122,6 +122,7 @@
     <ClInclude Include="Boid.h" />
     <ClInclude Include="DeviceFunctions.h" />
     <ClInclude Include="Graphics.h" />
+    <ClInclude Include="Grid.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="Obstacle.h" />
     <ClInclude Include="shader.h" />
@@ -129,6 +130,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp" />
+    <ClCompile Include="Grid.cpp" />
     <ClCompile Include="Helper.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

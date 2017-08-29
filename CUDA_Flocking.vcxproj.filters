@@ -22,6 +22,9 @@
     <ClInclude Include="Helper.h">
       <Filter>Code</Filter>
     </ClInclude>
+    <ClInclude Include="Grid.h">
+      <Filter>Code</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
@@ -38,6 +41,9 @@
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="Graphics.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Grid.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>
