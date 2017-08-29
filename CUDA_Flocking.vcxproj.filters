@@ -22,7 +22,7 @@
     <ClInclude Include="Helper.h">
       <Filter>Code</Filter>
     </ClInclude>
-    <ClInclude Include="Grid.h">
+    <ClInclude Include="Cell.h">
       <Filter>Code</Filter>
     </ClInclude>
   </ItemGroup>
@@ -43,7 +43,7 @@
     <ClCompile Include="Graphics.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Grid.cpp">
+    <ClCompile Include="Cell.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

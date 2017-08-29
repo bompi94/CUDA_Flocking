@@ -1,14 +1,16 @@
 #include "CudaFlocking.h"
 
 #include "Graphics.h"
-#include "Grid.h"
 #include "Helper.h"
 
 Graphics graphics;
+Cell* cells;
+Cell* dev_cells;
+
+unsigned int numberOfCells = 3;
 
 int main(int argc, char **argv)
 {
-	Grid g(4);
 	startApplication(argc, argv);
 	glutMainLoop();
 	endApplication();
@@ -24,6 +26,7 @@ void startApplication(int argc, char **argv)
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
+	prepareCells(); 
 	prepareGraphicsToRenderBoids(&vbo);
 	prepareCUDADataStructures();
 }
@@ -49,6 +52,32 @@ void preparePositionsAndVelocitiesArray()
 	}
 }
 
+void prepareCells()
+{
+	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells); 
+
+	float side = (float)2 / numberOfCells; 
+	float x = -1; 
+	float y = 1; 
+
+	unsigned int id = 0; 
+
+	for (int i = 0; i < numberOfCells; i++)
+	{
+		x = -1; 
+		for (int j = 0; j < numberOfCells; j++) 
+		{
+
+			Cell c(make_float2(x,y), side, id);
+
+			cells[id] = c;
+			id++;
+			x += side; 
+		}
+		y -= side; 
+	}
+}
+
 void prepareObstacles()
 {
 	for (int i = 0; i < numberOfObstacles; i++)
@@ -60,18 +89,19 @@ void prepareObstacles()
 
 void prepareGraphicsToRenderBoids(GLuint *vbo)
 {
-	graphics.createGLStructures(vbo, &VAO); 
-	graphics.saveBoidsRenderingData(vbo, boidVertices, numberOfBoids); 
-	graphics.loadBoidsVertices(vbo); 
-	graphics.loadBoidsColor(vbo); 
-	graphics.loadBoidsPosition(vbo, &translationsVBO, positions, numberOfBoids); 
-	graphics.allowInstancing(); 
+	graphics.createGLStructures(vbo, &VAO);
+	graphics.saveBoidsRenderingData(vbo, boidVertices, numberOfBoids);
+	graphics.loadBoidsVertices(vbo);
+	graphics.loadBoidsColor(vbo);
+	graphics.loadBoidsPosition(vbo, &translationsVBO, positions, numberOfBoids);
+	graphics.allowInstancing();
 }
 
 void prepareCUDADataStructures()
 {
 	prepareBoidCUDADataStructures();
 	prepareObstaclesCUDADataStructures();
+	prepareCellsCUDADataStructures(); 
 }
 
 void prepareBoidCUDADataStructures()
@@ -90,6 +120,12 @@ void prepareObstaclesCUDADataStructures()
 	cudaMemcpy(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float), cudaMemcpyHostToDevice);
 }
 
+void prepareCellsCUDADataStructures()
+{
+	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
+	cudaMemcpy(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice);
+}
+
 void startOfFrame()
 {
 	sdkStartTimer(&timer);
@@ -106,29 +142,30 @@ void endOfFrame()
 
 void display()
 {
-	startOfFrame(); 
+	startOfFrame();
 	graphics.drawObstacles(numberOfObstacles, obstacleCenters, obstacleRadii);
 	calculateBoidsPositions();
-	graphics.drawBoids(numberOfBoids,&translationsVBO, positions);
-	endOfFrame(); 
+	graphics.drawBoids(numberOfBoids, &translationsVBO, positions);
+	endOfFrame();
 }
 
 void callKernel()
 {
 	int threadsPerBlock = 32;
 	updatePositionsWithVelocities1 << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> >
-		(dev_positions,	dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii);
+		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells);
 }
 
 void calculateBoidsPositions()
 {
-	callKernel(); 
+	callKernel();
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
 void endApplication()
 {
 	freeCUDADataStructures();
+	free(cells); 
 	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

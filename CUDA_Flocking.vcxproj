@@ -112,6 +112,9 @@
     <CudaCompile>
       <GPUDebugInfo Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</GPUDebugInfo>
     </CudaCompile>
+    <ClCompile>
+      <SuppressStartupBanner Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</SuppressStartupBanner>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="CUDA_Flocking.cu">
@@ -122,7 +125,7 @@
     <ClInclude Include="Boid.h" />
     <ClInclude Include="DeviceFunctions.h" />
     <ClInclude Include="Graphics.h" />
-    <ClInclude Include="Grid.h" />
+    <ClInclude Include="Cell.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="Obstacle.h" />
     <ClInclude Include="shader.h" />
@@ -130,7 +133,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics.cpp" />
-    <ClCompile Include="Grid.cpp" />
+    <ClCompile Include="Cell.cpp" />
     <ClCompile Include="Helper.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

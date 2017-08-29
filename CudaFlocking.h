@@ -24,6 +24,7 @@
 
 #include "Boid.h"
 #include "DeviceFunctions.h"
+#include "Cell.h"
 
 #ifdef _WIN32
 #  define WINDOWS_LEAN_AND_MEAN
@@ -80,11 +81,14 @@ void endApplication();
 void calculateBoidsPositions(); 
 void registerGlutCallbacks();
 void preparePositionsAndVelocitiesArray();
+void prepareCells();
 void prepareCUDADataStructures();
 void freeCUDADataStructures();
 void endApplication(); 
 void computeFPS(); 
-__global__  void updatePositionsWithVelocities1(float2 *positions, float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii);
+__global__  void updatePositionsWithVelocities1(float2 *positions,
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int numberOfCells);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -93,9 +97,12 @@ __device__ void screenOverflow(float2 *positions, int boidIndex);
 void prepareBoidCUDADataStructures(); 
 void prepareObstaclesCUDADataStructures();
 
+void prepareCellsCUDADataStructures();
+
 __global__  void updatePositionsWithVelocities1(float2 *positions, 
-	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii)
-{
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int numberOfCells)
+{ 
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
 	if (boidIndex < numberOfBoids)
 	{
@@ -108,46 +115,6 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
 		screenOverflow(positions, boidIndex);
-	}
-}
-
-__global__ void updatePositionsWithVelocities2(float2 *positions, 
-	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii)
-{
-	unsigned int threadX = blockDim.x*blockIdx.x + threadIdx.x; 
-	unsigned int threadY = threadIdx.y; 
-	float boidSpeed = 0.003;
-	float2 vector; 
-	float weight;
-
-	if (threadX < numberOfBoids) {
-		if (threadY == 0) { //allineamento 
-			vector = alignment(threadX, positions, velocities, boidradius);
-			weight = 100;
-		}
-		if (threadY == 1) {//coesione
-			vector = cohesion(threadX, positions, velocities, boidradius);
-			weight = 100;
-		}
-		if (threadY == 2) {//separazione
-			vector = separation(threadX, positions, velocities, boidradius);
-			weight = 101;
-		}
-		if (threadY == 3) {//ostacoli
-			vector = obstacleAvoidance(positions[threadX], velocities[threadX], obstacleCenters, obstacleRadii);
-			weight = 100;
-		}
-
-		velocities[threadX].x += vector.x * weight;
-		velocities[threadX].y += vector.y * weight;
-
-		if (threadY == 3) {
-			velocities[threadX] = normalizeVector(velocities[threadX]);
-			velocities[threadX] = vectorMultiplication(velocities[threadX], boidSpeed);
-			positions[threadX].x += velocities[threadX].x;
-			positions[threadX].y += velocities[threadX].y;
-			screenOverflow(positions, threadX);
-		}
 	}
 }
 
