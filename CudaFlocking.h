@@ -1,3 +1,4 @@
+#pragma once
 #ifndef CUDAFLOCKING_H
 #define CUDAFLOCKING_H
 
@@ -24,7 +25,10 @@
 
 #include "Boid.h"
 #include "DeviceFunctions.h"
+
+#ifndef _CELL_H
 #include "Cell.h"
+#endif
 
 #ifdef _WIN32
 #  define WINDOWS_LEAN_AND_MEAN
@@ -66,7 +70,6 @@ int timecount = 0;
 //boid i is defined by positions[i] and velocities[i]
 float2 positions[numberOfBoids];
 float2 velocities[numberOfBoids];
-
 float2 *dev_positions, *dev_velocities;
 
 void display();

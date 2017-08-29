@@ -1,5 +1,4 @@
 #include "CudaFlocking.h"
-
 #include "Graphics.h"
 #include "Helper.h"
 
@@ -12,8 +11,6 @@ int* dev_cellHead,
 
 int* cellNext; 
 int* dev_cellNext; 
-
-unsigned int numberOfCells = 10;
 
 int main(int argc, char **argv)
 {
@@ -58,6 +55,30 @@ void preparePositionsAndVelocitiesArray()
 	}
 }
 
+void debugPrintIntvector(int* vect)
+{
+	for (int i = 0; i < 8; i++)
+	{
+		printf("%d ", vect[i]); 
+	}
+	printf("\n"); 
+}
+
+void testCells()
+{
+	printf("adjacents to %d ", cells[0].id);
+	debugPrintIntvector(cells[0].getAdjacentCells());
+
+	printf("adjacents to %d ", cells[7].id);
+	debugPrintIntvector(cells[7].getAdjacentCells());
+
+	printf("adjacents to %d ", cells[24].id);
+	debugPrintIntvector(cells[24].getAdjacentCells());
+
+	printf("adjacents to %d ", cells[9].id);
+	debugPrintIntvector(cells[9].getAdjacentCells());
+}
+
 void prepareCells()
 {
 	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells); 
@@ -81,10 +102,12 @@ void prepareCells()
 			x += side; 
 		}
 		y -= side; 
-	}
+	} 
 
 	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells); 
-	cellNext = (int*)malloc(sizeof(int) * numberOfBoids); 
+	cellNext = (int*)malloc(sizeof(int) * numberOfBoids);
+
+	testCells(); 
 
 	//this initialization is useful in the kernel because -1 represents the end of references
 	for (int i = 0; i < numberOfCells * numberOfCells; i++)

@@ -1,3 +1,4 @@
+#pragma once
 #ifndef DEVICEFUNCTIONS_H
 #define DEVICEFUNCTIONS_H
 
