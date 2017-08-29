@@ -56,15 +56,15 @@ void prepareCells()
 {
 	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells); 
 
-	float side = (float)2 / numberOfCells; 
-	float x = -1; 
-	float y = 1; 
+	float side = (float)2.1 / numberOfCells; 
+	float x = -1.05; 
+	float y = 1.05; 
 
 	unsigned int id = 0; 
 
 	for (int i = 0; i < numberOfCells; i++)
 	{
-		x = -1; 
+		x = -1.05; 
 		for (int j = 0; j < numberOfCells; j++) 
 		{
 

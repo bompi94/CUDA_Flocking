@@ -73,39 +73,54 @@ void display();
 void keyboard(unsigned char key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void timerEvent(int value);
-void cleanup(); 
+void cleanup();
 void prepareGraphicsToRenderBoids(GLuint *vbo);
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res);
 void startApplication(int argc, char ** argv);
 void endApplication();
-void calculateBoidsPositions(); 
+void calculateBoidsPositions();
 void registerGlutCallbacks();
 void preparePositionsAndVelocitiesArray();
 void prepareCells();
 void prepareCUDADataStructures();
 void freeCUDADataStructures();
-void endApplication(); 
-void computeFPS(); 
+void endApplication();
+void computeFPS();
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
-void prepareObstacles(); 
+void prepareObstacles();
 __device__ void screenOverflow(float2 *positions, int boidIndex);
-void prepareBoidCUDADataStructures(); 
+void prepareBoidCUDADataStructures();
 void prepareObstaclesCUDADataStructures();
-
 void prepareCellsCUDADataStructures();
 
-__global__  void updatePositionsWithVelocities1(float2 *positions, 
+__device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
+{
+	for (int i = 0; i < numberOfCells*numberOfCells; i++)
+	{
+		if (cells[i].IsPositionInCell(pos))
+			return cells[i].id;
+	}
+
+	return -1; 
+}
+
+__global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells)
-{ 
+{
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
 	if (boidIndex < numberOfBoids)
 	{
+		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+
+		if (cellID == -1 || cellID > 8)
+			printf("%f %f \n", positions[boidIndex].x, positions[boidIndex].y);
+
 		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
 		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
 		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
@@ -115,6 +130,7 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
 		screenOverflow(positions, boidIndex);
+
 	}
 }
 

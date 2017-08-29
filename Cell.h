@@ -21,4 +21,16 @@ public:
 		side = s;
 		id = i; 
 	};
+
+	__device__ bool IsPositionInCell(float2 position)
+	{
+		float x0, y0, x1, y1;
+		x0 = topLeftCorner.x;
+		y0 = topLeftCorner.y;
+		x1 = x0 + side;
+		y1 = y0 - side; 
+		bool correctX = position.x >= x0 && position.x <= x1;
+		bool correctY = position.y <= y0 && position.y >= y1;
+		return correctX && correctY;
+	}
 };
