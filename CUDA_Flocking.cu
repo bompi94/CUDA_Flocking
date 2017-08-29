@@ -7,7 +7,13 @@ Graphics graphics;
 Cell* cells;
 Cell* dev_cells;
 
-unsigned int numberOfCells = 3;
+int* cellHead; 
+int* dev_cellHead,
+
+int* cellNext; 
+int* dev_cellNext; 
+
+unsigned int numberOfCells = 10;
 
 int main(int argc, char **argv)
 {
@@ -76,6 +82,19 @@ void prepareCells()
 		}
 		y -= side; 
 	}
+
+	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells); 
+	cellNext = (int*)malloc(sizeof(int) * numberOfBoids); 
+
+	//this initialization is useful in the kernel because -1 represents the end of references
+	for (int i = 0; i < numberOfCells * numberOfCells; i++)
+	{
+		cellHead[i] = -1;
+	}
+	for (int i = 0; i < numberOfBoids; i++)
+	{
+		cellNext[i] = -1; 
+	}
 }
 
 void prepareObstacles()
@@ -124,6 +143,13 @@ void prepareCellsCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
 	cudaMemcpy(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice);
+
+	cudaMalloc((void**)&dev_cellHead, numberOfCells * numberOfCells * sizeof(int)); 
+	cudaMemcpy(dev_cellHead, cellHead, numberOfCells * numberOfCells * sizeof(int), cudaMemcpyHostToDevice);
+
+	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int)); 
+	cudaMemcpy(dev_cellNext, cellNext, numberOfBoids * sizeof(int),cudaMemcpyHostToDevice); 
+
 }
 
 void startOfFrame()
@@ -153,7 +179,8 @@ void callKernel()
 {
 	int threadsPerBlock = 32;
 	updatePositionsWithVelocities1 << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> >
-		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells);
+		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
+			dev_cellHead, dev_cellNext);
 }
 
 void calculateBoidsPositions()

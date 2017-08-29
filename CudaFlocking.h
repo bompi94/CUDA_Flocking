@@ -88,7 +88,8 @@ void endApplication();
 void computeFPS();
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
-	Cell* cells, int numberOfCells);
+	Cell* cells, int numberOfCells,
+	int* cellHead, int* cellNext);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -109,21 +110,26 @@ __device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
 	return -1; 
 }
 
+
+
+#if __CUDA_ARCH__ >= 200 
+
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
-	Cell* cells, int numberOfCells)
+	Cell* cells, int numberOfCells, 
+	int* cellHead, int* cellNext)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
 	if (boidIndex < numberOfBoids)
 	{
+		//registers boid in appropriateCell 
 		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex); 
+		cellNext[boidIndex] = lastStartElement; 
 
-		if (cellID == -1 || cellID > 8)
-			printf("%f %f \n", positions[boidIndex].x, positions[boidIndex].y);
-
-		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius);
-		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius);
-		float2 separationVector = separation(boidIndex, positions, velocities, boidradius);
+		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius, cellNext);
+		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius, cellNext);
+		float2 separationVector = separation(boidIndex, positions, velocities, boidradius, cellNext);
 		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector, obstacleAvoidanceVector);
@@ -131,8 +137,11 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		positions[boidIndex].y += velocities[boidIndex].y;
 		screenOverflow(positions, boidIndex);
 
+		cellNext[boidIndex] = -1; 
+		cellHead[cellID] = -1; 
 	}
 }
+#endif
 
 __device__ void screenOverflow(float2 *positions, int boidIndex)
 {
