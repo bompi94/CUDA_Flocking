@@ -12,6 +12,9 @@ int* dev_cellHead,
 int* cellNext; 
 int* dev_cellNext; 
 
+int** neighbours;
+int** dev_neighbours; 
+
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
@@ -55,49 +58,6 @@ void preparePositionsAndVelocitiesArray()
 	}
 }
 
-void debugPrintIntvector(int* vect)
-{
-	for (int i = 0; i < 8; i++)
-	{
-		printf("%d ", vect[i]); 
-	}
-	printf("\n"); 
-}
-
-void testCells()
-{
-
-	printf("%d \n\n\n", 14 / 5 - 20 / 5);
-
-
-	printf("adjacents to %d -> ", cells[0].id);
-	debugPrintIntvector(cells[0].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[7].id);
-	debugPrintIntvector(cells[7].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[24].id);
-	debugPrintIntvector(cells[24].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[9].id);
-	debugPrintIntvector(cells[9].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[20].id);
-	debugPrintIntvector(cells[20].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[10].id);
-	debugPrintIntvector(cells[10].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[4].id);
-	debugPrintIntvector(cells[4].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[2].id);
-	debugPrintIntvector(cells[2].getAdjacentCells());
-
-	printf("adjacents to %d -> ", cells[22].id);
-	debugPrintIntvector(cells[22].getAdjacentCells());
-}
-
 void prepareCells()
 {
 	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells); 
@@ -124,9 +84,7 @@ void prepareCells()
 	} 
 
 	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells); 
-	cellNext = (int*)malloc(sizeof(int) * numberOfBoids);
-
-	testCells(); 
+	cellNext = (int*)malloc(sizeof(int) * numberOfBoids); 
 
 	//this initialization is useful in the kernel because -1 represents the end of references
 	for (int i = 0; i < numberOfCells * numberOfCells; i++)
@@ -136,6 +94,12 @@ void prepareCells()
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		cellNext[i] = -1; 
+	}
+
+	neighbours = (int**)malloc(sizeof(int*) * numberOfCells * numberOfCells);
+	for (int i = 0; i < numberOfCells * numberOfCells; i++) {
+		int * neighbourCells = Cell::getAdjacentCells(i);
+		neighbours[i] = neighbourCells;
 	}
 }
 
@@ -192,6 +156,11 @@ void prepareCellsCUDADataStructures()
 	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int)); 
 	cudaMemcpy(dev_cellNext, cellNext, numberOfBoids * sizeof(int),cudaMemcpyHostToDevice); 
 
+	cudaMalloc((void**)&dev_neighbours, numberOfCells * numberOfCells * sizeof(int *));
+	for (int i = 0; i < numberOfCells * numberOfCells; i++)
+		cudaMalloc((void**)&neighbours[i], sizeof(int) * 8);
+	cudaMemcpy(dev_neighbours, neighbours, numberOfCells * numberOfCells * sizeof(int*), cudaMemcpyHostToDevice);
+
 }
 
 void startOfFrame()
@@ -222,7 +191,7 @@ void callKernel()
 	int threadsPerBlock = 32;
 	updatePositionsWithVelocities1 << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
-			dev_cellHead, dev_cellNext);
+			dev_cellHead, dev_cellNext, dev_neighbours);
 }
 
 void calculateBoidsPositions()

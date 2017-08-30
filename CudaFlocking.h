@@ -92,7 +92,7 @@ void computeFPS();
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext);
+	int* cellHead, int* cellNext, int** neighbours);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -113,16 +113,15 @@ __device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
 	return -1; 
 }
 
-
-
-#if __CUDA_ARCH__ >= 200 
+#if __CUDA_ARCH__ >= 200 //necessary to compile atomicExch
 
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells, 
-	int* cellHead, int* cellNext)
+	int* cellHead, int* cellNext, int** neighbours)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+
 	if (boidIndex < numberOfBoids)
 	{
 		//registers boid in appropriateCell 
@@ -130,7 +129,9 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex); 
 		cellNext[boidIndex] = lastStartElement; 
 
-		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius, cellNext);
+		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius,
+			cellID, cellHead, cellNext, neighbours);
+
 		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius, cellNext);
 		float2 separationVector = separation(boidIndex, positions, velocities, boidradius, cellNext);
 		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);

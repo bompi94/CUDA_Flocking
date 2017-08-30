@@ -5,7 +5,7 @@
 #include <vector_functions.h>
 #include <stdlib.h>
 
-unsigned int numberOfCells = 5;
+unsigned int numberOfCells = 4;
 
 class Cell {
 public:
@@ -17,6 +17,7 @@ public:
 	{
 		topLeftCorner = make_float2(0, 0);
 		side = 0;
+		numberOfCells = numberOfCells;
 	}
 
 	__device__ __host__ Cell(float2 corner, float s, int i)
@@ -24,6 +25,7 @@ public:
 		topLeftCorner = corner;
 		side = s;
 		id = i;
+		numberOfCells = numberOfCells; 
 	};
 
 	__device__ bool IsPositionInCell(float2 position)
@@ -39,10 +41,12 @@ public:
 	}
 
 	//assuming the grid has at least 8 cells
-	__device__ __host__  int* getAdjacentCells()
+	static int* getAdjacentCells(int id)
 	{
 		int n = numberOfCells + 1;
 		int* result = (int*)malloc(sizeof(int) * 8);
+
+		int* dev_result; 
 
 		result[0] = specialSum(id, -n);
 		result[1] = specialSum(id, -n + 1);
@@ -55,16 +59,19 @@ public:
 		result[6] = specialSum(id, n - 1);
 		result[7] = specialSum(id, n);
 
-		return result;
+		cudaMalloc((void**)dev_result, sizeof(int) * 8); 
+		cudaMemcpy(dev_result, result, 8 * sizeof(int), cudaMemcpyHostToDevice); 
+
+		return dev_result;
 	}
 
 private:
-	bool onSameRow(int a, int b)
+	static bool onSameRow(int a, int b)
 	{
 		return a / numberOfCells == b / numberOfCells;
 	}
 
-	int specialSum(int id, int toSum)
+	 static int specialSum(int id, int toSum)
 	{
 		int s = id + toSum;
 

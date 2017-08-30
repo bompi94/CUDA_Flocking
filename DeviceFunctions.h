@@ -90,10 +90,13 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 	return cohesionVector;
 }
 
-__device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius, int* cellNext)
+__device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius, 
+	int cellID, int* cellHead, int* cellNext, int** neighbours)
 {
 	float2 alignmentVector = make_float2(0, 0);
 	int cont = 0;
+
+	//considers the cell the boid is in at the moment
 	int nextID = cellNext[threadX];
 	while (nextID != -1) {
 		alignmentVector.x += velocities[nextID].x;
@@ -101,6 +104,19 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 		cont++;
 		nextID = cellNext[nextID]; 
 	}
+
+	//get through all the neighbors of the cell
+	for (int i = 0; i < 8; i++)
+	{
+		int neighbourCell = neighbours[cellID][i]; 
+		nextID = cellNext[cellHead[neighbourCell]]; 
+		while (nextID != -1) {
+			alignmentVector.x += velocities[nextID].x;
+			alignmentVector.y += velocities[nextID].y;
+			cont++;
+			nextID = cellNext[nextID];
+	}
+
 	alignmentVector = vectorDivision(alignmentVector, cont);
 	alignmentVector = normalizeVector(alignmentVector);
 	return alignmentVector;
