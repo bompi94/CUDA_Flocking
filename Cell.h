@@ -5,7 +5,7 @@
 #include <vector_functions.h>
 #include <stdlib.h>
 
-unsigned int numberOfCells = 10;
+unsigned int const numberOfCells = 5;
 
 class Cell {
 public:
@@ -17,7 +17,6 @@ public:
 	{
 		topLeftCorner = make_float2(0, 0);
 		side = 0;
-		numberOfCells = numberOfCells;
 	}
 
 	__device__ __host__ Cell(float2 corner, float s, int i)
@@ -25,7 +24,6 @@ public:
 		topLeftCorner = corner;
 		side = s;
 		id = i;
-		numberOfCells = numberOfCells; 
 	};
 
 	__device__ bool IsPositionInCell(float2 position)

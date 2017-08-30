@@ -6,19 +6,20 @@ Graphics graphics;
 Cell* cells;
 Cell* dev_cells;
 
-int* cellHead; 
+int* cellHead;
 int* dev_cellHead,
 
-int* cellNext; 
-int* dev_cellNext; 
+int* cellNext;
+int* dev_cellNext;
 
 int** neighbours;
-int** dev_neighbours; 
+
+int* dev_neighbours;
 
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
-	glutMainLoop();
+	//glutMainLoop();
 	endApplication();
 }
 
@@ -32,7 +33,7 @@ void startApplication(int argc, char **argv)
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
-	prepareCells(); 
+	prepareCells();
 	prepareGraphicsToRenderBoids(&vbo);
 	prepareCUDADataStructures();
 }
@@ -60,32 +61,31 @@ void preparePositionsAndVelocitiesArray()
 
 void prepareCells()
 {
-	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells); 
+	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells);
 
-	float side = (float)2.1 / numberOfCells; 
-	float x = -1.05; 
-	float y = 1.05; 
+	float side = (float)2.1 / numberOfCells;
+	float x = -1.05;
+	float y = 1.05;
 
-	unsigned int id = 0; 
+	unsigned int id = 0;
 
 	for (int i = 0; i < numberOfCells; i++)
 	{
-		x = -1.05; 
-		for (int j = 0; j < numberOfCells; j++) 
+		x = -1.05;
+		for (int j = 0; j < numberOfCells; j++)
 		{
 
-			Cell c(make_float2(x,y), side, id);
+			Cell c(make_float2(x, y), side, id);
 
 			cells[id] = c;
 			id++;
-			x += side; 
+			x += side;
 		}
-		y -= side; 
-	} 
+		y -= side;
+	}
 
-	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells); 
-	cellNext = (int*)malloc(sizeof(int) * numberOfBoids); 
-
+	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells);
+	cellNext = (int*)malloc(sizeof(int) * numberOfBoids);
 	//this initialization is useful in the kernel because -1 represents the end of references
 	for (int i = 0; i < numberOfCells * numberOfCells; i++)
 	{
@@ -93,7 +93,7 @@ void prepareCells()
 	}
 	for (int i = 0; i < numberOfBoids; i++)
 	{
-		cellNext[i] = -1; 
+		cellNext[i] = -1;
 	}
 
 	neighbours = (int**)malloc(sizeof(int*) * numberOfCells * numberOfCells);
@@ -126,7 +126,7 @@ void prepareCUDADataStructures()
 {
 	prepareBoidCUDADataStructures();
 	prepareObstaclesCUDADataStructures();
-	prepareCellsCUDADataStructures(); 
+	prepareCellsCUDADataStructures();
 }
 
 void prepareBoidCUDADataStructures()
@@ -150,17 +150,33 @@ void prepareCellsCUDADataStructures()
 	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
 	cudaMemcpy(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice);
 
-	cudaMalloc((void**)&dev_cellHead, numberOfCells * numberOfCells * sizeof(int)); 
+	cudaMalloc((void**)&dev_cellHead, numberOfCells * numberOfCells * sizeof(int));
 	cudaMemcpy(dev_cellHead, cellHead, numberOfCells * numberOfCells * sizeof(int), cudaMemcpyHostToDevice);
 
-	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int)); 
-	cudaMemcpy(dev_cellNext, cellNext, numberOfBoids * sizeof(int),cudaMemcpyHostToDevice); 
+	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int));
+	cudaMemcpy(dev_cellNext, cellNext, numberOfBoids * sizeof(int), cudaMemcpyHostToDevice);
 
-	cudaMalloc((void**)&dev_neighbours, numberOfCells * numberOfCells * sizeof(int *));
-	for (int i = 0; i < numberOfCells * numberOfCells; i++)
-		cudaMalloc((void**)&neighbours[i], sizeof(int) * 8);
-	cudaMemcpy(dev_neighbours, neighbours, numberOfCells * numberOfCells * sizeof(int*), cudaMemcpyHostToDevice);
 
+	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
+
+
+	int linearizedNeighbours[numberOfCells*numberOfCells*8]; 
+
+	int cont = 0; 
+
+	//scorre tutti i neighbors e li stampa
+	for (int i = 0; i < numberOfCells*numberOfCells; i++)
+	{
+		for (int j = 0; j < 8; j++)
+		{
+			linearizedNeighbours[cont] =  neighbours[i][j];
+			cont++; 
+		}
+	}
+
+	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8)*sizeof(int), cudaMemcpyHostToDevice);
+
+	DebugPrintNeighbours << <1, 1 >> > (dev_neighbours, numberOfCells);
 }
 
 void startOfFrame()
@@ -189,7 +205,11 @@ void display()
 void callKernel()
 {
 	int threadsPerBlock = 32;
-	updatePositionsWithVelocities1 << <numberOfBoids / threadsPerBlock + 1, threadsPerBlock >> >
+
+	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1, 1);
+	dim3 block(threadsPerBlock, 1, 1);
+
+	updatePositionsWithVelocities1 << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
 			dev_cellHead, dev_cellNext, dev_neighbours);
 }
@@ -203,7 +223,7 @@ void calculateBoidsPositions()
 void endApplication()
 {
 	freeCUDADataStructures();
-	free(cells); 
+	free(cells);
 	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

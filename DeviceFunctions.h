@@ -53,14 +53,14 @@ __device__ float2 separation(int threadX, float2 *positions, float2 *velocities,
 {
 	float2 separationVector = make_float2(0, 0);
 	int cont = 0;
-	int nextID = cellNext[threadX]; 
+	int nextID = cellNext[threadX];
 	while (nextID != -1) {
 		separationVector.x += positions[nextID].x - positions[threadX].x;
 		separationVector.y += positions[nextID].y - positions[threadX].y;
 		cont++;
 		nextID = cellNext[nextID];
 	}
-	
+
 	separationVector = vectorDivision(separationVector, cont);
 	separationVector.x *= -1;
 	separationVector.y *= -1;
@@ -72,7 +72,7 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 {
 	float2 cohesionVector = make_float2(0, 0);
 	int cont = 0;
-	int nextID = cellNext[threadX]; 
+	int nextID = cellNext[threadX];
 
 	while (nextID != -1) {
 		cohesionVector.x += positions[nextID].x;
@@ -90,8 +90,8 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 	return cohesionVector;
 }
 
-__device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius, 
-	int cellID, int* cellHead, int* cellNext, int** neighbours)
+__device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius,
+	int cellID, int* cellHead, int* cellNext, int* neighbours) //TODO riportarla 
 {
 	float2 alignmentVector = make_float2(0, 0);
 	int cont = 0;
@@ -102,25 +102,23 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 		alignmentVector.x += velocities[nextID].x;
 		alignmentVector.y += velocities[nextID].y;
 		cont++;
-		nextID = cellNext[nextID]; 
-	}
-
-	//get through all the neighbors of the cell
-	for (int i = 0; i < 8; i++)
-	{
-		int neighbourCell = neighbours[cellID][i];
-		nextID = cellNext[cellHead[neighbourCell]];
-		while (nextID != -1 ) {
-			alignmentVector.x += velocities[nextID].x;
-			alignmentVector.y += velocities[nextID].y;
-			cont++;
-			nextID = cellNext[nextID]; 
-		}
+		nextID = cellNext[nextID];
 	}
 
 	alignmentVector = vectorDivision(alignmentVector, cont);
 	alignmentVector = normalizeVector(alignmentVector);
 	return alignmentVector;
+}
+
+__global__ void DebugPrintNeighbours(int* neighbours, int numberOfCells)
+{
+
+	for (int i = 0; i < numberOfCells * numberOfCells * 8; i++)
+	{
+		if (i % 8 == 0)
+			printf("vicini di %d \n", i / 8);
+		printf("  %d\n", neighbours[i]);
+	}
 }
 
 __device__ __host__ float2 vectorSum(float2 vector1, float2 vector2)

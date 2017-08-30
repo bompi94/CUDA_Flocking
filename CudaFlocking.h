@@ -92,7 +92,7 @@ void computeFPS();
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int** neighbours);
+	int* cellHead, int* cellNext, int* neighbours);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -110,30 +110,45 @@ __device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
 			return cells[i].id;
 	}
 
-	return -1; 
+	return -1;
 }
 
 #if __CUDA_ARCH__ >= 200 //necessary to compile atomicExch
 
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
-	Cell* cells, int numberOfCells, 
-	int* cellHead, int* cellNext, int** neighbours)
+	Cell* cells, int numberOfCells,
+	int* cellHead, int* cellNext, int* neighbours)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int boidY = threadIdx.y; 
 
 	if (boidIndex < numberOfBoids)
 	{
 		//registers boid in appropriateCell 
 		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex); 
-		cellNext[boidIndex] = lastStartElement; 
+		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
+		cellNext[boidIndex] = lastStartElement;
 
-		float2 alignmentVector = alignment(boidIndex, positions, velocities, boidradius,
+		int neighbourBoidIndex = boidIndex; 
+
+		//la mia cella
+		if (boidY == 8)
+			neighbourBoidIndex = boidIndex;
+
+		//una delle celle vicine
+		else {
+			int neighbourCellID = neighbours[cellID*9+boidY];
+			neighbourBoidIndex = cellHead[neighbourCellID];
+		}
+		 
+		float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius,
 			cellID, cellHead, cellNext, neighbours);
 
-		float2 cohesionVector = cohesion(boidIndex, positions, velocities, boidradius, cellNext);
-		float2 separationVector = separation(boidIndex, positions, velocities, boidradius, cellNext);
+		float2 cohesionVector = cohesion(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+
+		float2 separationVector = separation(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+
 		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector, obstacleAvoidanceVector);
@@ -142,8 +157,8 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		positions[boidIndex].y += velocities[boidIndex].y;
 		screenOverflow(positions, boidIndex);
 
-		cellNext[boidIndex] = -1; 
-		cellHead[cellID] = -1; 
+		cellNext[boidIndex] = -1;
+		cellHead[cellID] = -1;
 	}
 }
 #endif
