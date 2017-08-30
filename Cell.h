@@ -5,7 +5,7 @@
 #include <vector_functions.h>
 #include <stdlib.h>
 
-unsigned int numberOfCells = 4;
+unsigned int numberOfCells = 10;
 
 class Cell {
 public:
@@ -46,8 +46,6 @@ public:
 		int n = numberOfCells + 1;
 		int* result = (int*)malloc(sizeof(int) * 8);
 
-		int* dev_result; 
-
 		result[0] = specialSum(id, -n);
 		result[1] = specialSum(id, -n + 1);
 		result[2] = specialSum(id, -n + 2);
@@ -59,10 +57,7 @@ public:
 		result[6] = specialSum(id, n - 1);
 		result[7] = specialSum(id, n);
 
-		cudaMalloc((void**)dev_result, sizeof(int) * 8); 
-		cudaMemcpy(dev_result, result, 8 * sizeof(int), cudaMemcpyHostToDevice); 
-
-		return dev_result;
+		return result;
 	}
 
 private:

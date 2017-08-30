@@ -137,6 +137,7 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector, obstacleAvoidanceVector);
+
 		positions[boidIndex].x += velocities[boidIndex].x;
 		positions[boidIndex].y += velocities[boidIndex].y;
 		screenOverflow(positions, boidIndex);
