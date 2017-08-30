@@ -101,19 +101,15 @@ __device__ void screenOverflow(float2 *positions, int boidIndex);
 void prepareBoidCUDADataStructures();
 void prepareObstaclesCUDADataStructures();
 void prepareCellsCUDADataStructures();
+__global__ void cellsSetup(float2 *positions,
+	Cell* cells, int numberOfCells,
+	int* cellHead, int* cellNext); 
+__global__ void cellsReset(float2 *positions,
+	Cell* cells, int numberOfCells,
+	int* cellHead, int* cellNext);
 
-__device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
-{
-	for (int i = 0; i < numberOfCells*numberOfCells; i++)
-	{
-		if (cells[i].IsPositionInCell(pos))
-			return cells[i].id;
-	}
+__device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells);
 
-	return -1;
-}
-
-#if __CUDA_ARCH__ >= 200 //necessary to compile atomicExch
 
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
@@ -121,27 +117,22 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 	int* cellHead, int* cellNext, int* neighbours)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int boidY = threadIdx.y; 
+	unsigned int boidY = threadIdx.y;
 
 	if (boidIndex < numberOfBoids)
 	{
-		//registers boid in appropriateCell 
 		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
-		cellNext[boidIndex] = lastStartElement;
+		int neighbourCellID = neighbours[(cellID * 8) + boidY];
+		int neighbourBoidIndex = cellHead[neighbourCellID];
 
-		int neighbourBoidIndex = boidIndex; 
-
-		//la mia cella
 		if (boidY == 8)
-			neighbourBoidIndex = boidIndex;
-
-		//una delle celle vicine
-		else {
-			int neighbourCellID = neighbours[cellID*9+boidY];
-			neighbourBoidIndex = cellHead[neighbourCellID];
+		{
+			neighbourCellID = cellID; 
+			neighbourBoidIndex = cellHead[neighbourCellID];;
 		}
-		 
+
+		//printf("myIndex %d boidY %d mCell %d nCell %d \n", boidIndex, boidY, cellID, neighbourCellID); 
+
 		float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius,
 			cellID, cellHead, cellNext, neighbours);
 
@@ -150,18 +141,43 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		float2 separationVector = separation(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 
 		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
+		
 		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 			cohesionVector, separationVector, obstacleAvoidanceVector);
-
-		positions[boidIndex].x += velocities[boidIndex].x;
-		positions[boidIndex].y += velocities[boidIndex].y;
-		screenOverflow(positions, boidIndex);
-
-		cellNext[boidIndex] = -1;
-		cellHead[cellID] = -1;
+	
+		if (boidY == 8) {
+			positions[boidIndex].x += velocities[boidIndex].x;
+			positions[boidIndex].y += velocities[boidIndex].y;
+			screenOverflow(positions, boidIndex);
+		} 
 	}
 }
+
+#if __CUDA_ARCH__ >= 200 //necessary to compile atomicExch
+__global__ void cellsSetup(float2 *positions,
+	Cell* cells, int numberOfCells,
+	int* cellHead, int* cellNext)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+	__syncthreads(); 
+	int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
+	__syncthreads();
+	cellNext[boidIndex] = lastStartElement;
+	__syncthreads();
+}
 #endif
+
+__global__ void cellsReset(float2 *positions,
+	Cell* cells, int numberOfCells,
+	int* cellHead, int* cellNext)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+	cellNext[boidIndex] = -1;
+	cellHead[cellID] = -1;
+}
+
 
 __device__ void screenOverflow(float2 *positions, int boidIndex)
 {
@@ -174,6 +190,17 @@ __device__ void screenOverflow(float2 *positions, int boidIndex)
 	{
 		positions[boidIndex].y *= -1;
 	}
+}
+
+__device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
+{
+	for (int i = 0; i < numberOfCells*numberOfCells; i++)
+	{
+		if (cells[i].IsPositionInCell(pos))
+			return cells[i].id;
+	}
+
+	return -1;
 }
 
 #endif //CUDAFLOCKING_H

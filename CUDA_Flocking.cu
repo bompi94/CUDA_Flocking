@@ -16,10 +16,20 @@ int** neighbours;
 
 int* dev_neighbours;
 
+//Macro for checking cuda errors following a cuda launch or api call
+#define cudaCheckError() {                                          \
+ cudaError_t e=cudaGetLastError();                                 \
+ if(e!=cudaSuccess) {                                              \
+   printf("Cuda failure %s:%d: '%s'\n",__FILE__,__LINE__,cudaGetErrorString(e));           \
+   exit(0); \
+ }                                                                 \
+}
+
+
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
-	//glutMainLoop();
+	glutMainLoop();
 	endApplication();
 }
 
@@ -175,8 +185,6 @@ void prepareCellsCUDADataStructures()
 	}
 
 	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8)*sizeof(int), cudaMemcpyHostToDevice);
-
-	DebugPrintNeighbours << <1, 1 >> > (dev_neighbours, numberOfCells);
 }
 
 void startOfFrame()
@@ -206,12 +214,25 @@ void callKernel()
 {
 	int threadsPerBlock = 32;
 
-	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1, 1);
-	dim3 block(threadsPerBlock, 1, 1);
+	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
+	dim3 block(threadsPerBlock, 9);
+
+	cellsSetup << <grid, dim3(threadsPerBlock, 1) >> > (dev_positions, dev_cells, numberOfCells, dev_cellHead, dev_cellNext);
+	cudaDeviceSynchronize();
+	cudaCheckError();
+	printf("a");
 
 	updatePositionsWithVelocities1 << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
 			dev_cellHead, dev_cellNext, dev_neighbours);
+	cudaDeviceSynchronize();
+	cudaCheckError();
+	printf("b");
+
+	cellsReset << <grid, dim3(threadsPerBlock, 1) >> > (dev_positions, dev_cells, numberOfCells, dev_cellHead, dev_cellNext);
+	cudaDeviceSynchronize();
+	cudaCheckError();
+	printf("c"); 
 }
 
 void calculateBoidsPositions()
