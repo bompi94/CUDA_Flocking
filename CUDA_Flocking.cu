@@ -66,17 +66,36 @@ void debugPrintIntvector(int* vect)
 
 void testCells()
 {
-	printf("adjacents to %d ", cells[0].id);
+
+	printf("%d \n\n\n", 14 / 5 - 20 / 5);
+
+
+	printf("adjacents to %d -> ", cells[0].id);
 	debugPrintIntvector(cells[0].getAdjacentCells());
 
-	printf("adjacents to %d ", cells[7].id);
+	printf("adjacents to %d -> ", cells[7].id);
 	debugPrintIntvector(cells[7].getAdjacentCells());
 
-	printf("adjacents to %d ", cells[24].id);
+	printf("adjacents to %d -> ", cells[24].id);
 	debugPrintIntvector(cells[24].getAdjacentCells());
 
-	printf("adjacents to %d ", cells[9].id);
+	printf("adjacents to %d -> ", cells[9].id);
 	debugPrintIntvector(cells[9].getAdjacentCells());
+
+	printf("adjacents to %d -> ", cells[20].id);
+	debugPrintIntvector(cells[20].getAdjacentCells());
+
+	printf("adjacents to %d -> ", cells[10].id);
+	debugPrintIntvector(cells[10].getAdjacentCells());
+
+	printf("adjacents to %d -> ", cells[4].id);
+	debugPrintIntvector(cells[4].getAdjacentCells());
+
+	printf("adjacents to %d -> ", cells[2].id);
+	debugPrintIntvector(cells[2].getAdjacentCells());
+
+	printf("adjacents to %d -> ", cells[22].id);
+	debugPrintIntvector(cells[22].getAdjacentCells());
 }
 
 void prepareCells()

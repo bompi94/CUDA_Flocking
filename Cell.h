@@ -67,43 +67,122 @@ private:
 	int specialSum(int id, int toSum)
 	{
 		int s = id + toSum;
+
+		//handles left case
 		if (s == id - 1) {
 			if (!onSameRow(s, id) || s == -1) {
 				s += numberOfCells;
 			}
 		}
 
+		//handles right case
 		else if (s == id + 1) {
-			if (!onSameRow(s, id))
+			if (!onSameRow(s, id) || s == numberOfCells*numberOfCells)
 				s -= numberOfCells;
 		}
 
-		else if (s < id - 1 || s == 0) {
-			if (s < 0) {
-				s += numberOfCells * numberOfCells;
-				if (s < 0) //copre il caso dello 0 
-					s += 1;
+		//handles down cases
+		else if (s > id + 1) {
+
+			//exactly down
+			if (s == id + numberOfCells) {
+				//overflow down
+				if (s >= numberOfCells * numberOfCells)
+				{
+					s -= numberOfCells * numberOfCells;
+				}
 			}
 
-			if (s == 0) {
-				s += numberOfCells * numberOfCells - numberOfCells;
+			//down right
+			else if (s == id + numberOfCells + 1)
+			{
+
+
+				//overflow
+				if (s >= numberOfCells*numberOfCells) {
+					s -= numberOfCells*numberOfCells;
+					//handles bottom right case 
+					if (s / numberOfCells > 0) {
+						s -= numberOfCells;
+					}
+				}
+
+				//two lines down
+				else if (s / numberOfCells - id / numberOfCells == 2)
+				{
+					s -= numberOfCells;
+				}
 			}
-			if (onSameRow(s, id))
-				s -= 1; 
+
+			//down left
+			else if (s == id + numberOfCells - 1) {
+				//overflow
+				if (s >= numberOfCells * numberOfCells) {
+					s -= numberOfCells*numberOfCells;
+					//handles bottom left case
+					if (s == -1)
+						s += numberOfCells;
+				}
+				//same line
+				else if (onSameRow(s, id)) {
+					s += numberOfCells;
+					if (s >= numberOfCells*numberOfCells) {
+						s -= numberOfCells*numberOfCells; 
+					}
+				}
+
+
+			}
 		}
 
-		else if (s > id + 1)
-		{
-			if (s > numberOfCells * numberOfCells) {
-				s -= numberOfCells * numberOfCells;
-				if (s > numberOfCells)
-					s -= 1; //copre il caso del bottom right
-				if (s < 0) // copre il caso del bottom left
-					s += 1;
+		//handles up cases
+		else if (s < id - 1) {
+			//exactly up
+			if (s == id - numberOfCells) {
+				if (s < 0) {
+					s += numberOfCells*numberOfCells;
+				}
 			}
 
-			if (onSameRow(s, id))
-				s += numberOfCells; 
+			//up right
+			else if (s == id - numberOfCells + 1) {
+
+				//overflow
+				if (s < 0) {
+					s += numberOfCells * numberOfCells;
+					//top right
+					if (s >= numberOfCells * numberOfCells) {
+						s -= numberOfCells;
+					}
+				}
+				//same row
+				else if (onSameRow(s, id)) {
+					s -= numberOfCells;
+					if (s < 0) {
+						s += numberOfCells * numberOfCells;
+					}
+				}
+
+			}
+
+			//up left
+			else if (s == id - numberOfCells - 1) {
+				if (s == -1) {
+					s += numberOfCells;
+				}
+				//overflow
+				else if (s < 0) {
+					s += numberOfCells*numberOfCells;
+					if (s < numberOfCells*numberOfCells - numberOfCells)
+						s += numberOfCells;
+				}
+				//two lines up
+				else if (s / numberOfCells - id / numberOfCells == -2) {
+					s += numberOfCells;
+				}
+			}
+
+
 		}
 
 		return s;
