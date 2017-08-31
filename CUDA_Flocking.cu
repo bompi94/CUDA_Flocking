@@ -211,10 +211,13 @@ void callKernel()
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
 	dim3 block(threadsPerBlock, 9);
 
+	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
+		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells);
+	cudaDeviceSynchronize(); 
+
 	updatePositionsWithVelocities1 << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
 			dev_cellHead, dev_cellNext, dev_neighbours);
-	cudaDeviceSynchronize();
 	cudaCheckError();
 }
 

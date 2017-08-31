@@ -101,16 +101,18 @@ __device__ void screenOverflow(float2 *positions, int boidIndex);
 void prepareBoidCUDADataStructures();
 void prepareObstaclesCUDADataStructures();
 void prepareCellsCUDADataStructures();
-__device__ void cellsSetup(float2 *positions,
-	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext);
-__device__ void cellsResetAndUpdatePosition(float2 *positions, float2* velocities,
-	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext);
-
 __device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells);
 
-#if __CUDA_ARCH__ >= 200 //necessary to compile atomicExch
+
+__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+	int lastStartElement = cellHead[cellID];
+	cellHead[cellID] = boidIndex;
+	cellNext[boidIndex] = lastStartElement;
+}
+
 __global__  void updatePositionsWithVelocities1(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
@@ -118,27 +120,23 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int boidY = threadIdx.y;
+	int specialBoid = 0;
 
 	if (boidIndex < numberOfBoids)
 	{
 		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
 
-		if (cellID != -1) 
+		if (cellID != -1)
 		{
-
-			if (boidY == 8) {
-				int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
-				cellNext[boidIndex] = lastStartElement;
-			}
-
 			int neighbourCellID = neighbours[(cellID * 8) + boidY % 8];
 			int neighbourBoidIndex = cellHead[neighbourCellID];
 
-			if (boidY == 8)
+			if (boidY == specialBoid)
 			{
 				neighbourCellID = cellID;
 				neighbourBoidIndex = boidIndex;
 			}
+
 
 			if (neighbourBoidIndex != -1) {
 
@@ -153,67 +151,32 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 
 				float2 v = velocities[boidIndex];
 				v = vectorSum(v, boidVelocity);
-				v = normalizeVector(v);
-				v = vectorMultiplication(v, 0.003); //multiply by boidSpeed
-
 				velocities[boidIndex] = v;
-				//atomicExch(&velocities[boidIndex].x, v.x);
-				//atomicExch(&velocities[boidIndex].y, v.y);
 			}
 
-			if (boidY == 8) 
+			if (boidY == specialBoid)
 			{
+				float2 v = normalizeVector(velocities[boidIndex]);
+				v = vectorMultiplication(v, 0.003); //multiply by boidSpeed
+				velocities[boidIndex] = v;
 
 				float2 vv = positions[boidIndex];
 				vv = vectorSum(vv, velocities[boidIndex]);
-				positions[boidIndex] = vv; 
-
-				//atomicExch(&positions[boidIndex].x, vv.x);
-				//atomicExch(&positions[boidIndex].y, vv.y);
+				positions[boidIndex] = vv;
 
 				screenOverflow(positions, boidIndex);
 
 				cellNext[boidIndex] = -1;
 				cellHead[cellID] = -1;
 			}
+
+		} //endif cell!=-1
+
+		else {
+			positions[boidIndex] = make_float2(0, 0);
 		}
-	}
-}
-#endif
 
-#if __CUDA_ARCH__ >= 200 //necessary to compile atomicExch
-__device__ void cellsSetup(float2 *positions,
-	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext)
-{
-
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	if (boidIndex < numberOfBoids)
-	{
-		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
-		cellNext[boidIndex] = lastStartElement;
-	}
-}
-#endif
-
-
-__device__ void cellsResetAndUpdatePosition(float2 *positions, float2* velocities,
-	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext)
-{
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-
-	if (boidIndex < numberOfBoids) {
-
-		positions[boidIndex].x += velocities[boidIndex].x;
-		positions[boidIndex].y += velocities[boidIndex].y;
-		screenOverflow(positions, boidIndex);
-
-		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-		cellNext[boidIndex] = -1;
-		cellHead[cellID] = -1;
-	}
+	} // endif boidIndex < numberOfBoids
 }
 
 

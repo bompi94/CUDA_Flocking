@@ -49,21 +49,19 @@ __device__ __host__ float2 normalizeVector(float2 vector)
 	return vector;
 }
 
-
-
-
-
-__device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius,
+__device__ float2 alignment(int originalBoid, float2 *positions, float2 *velocities, float boidradius,
 	int* cellNext)
 {
 	float2 alignmentVector = make_float2(0, 0);
 	int cont = 0;
-	int nextID = cellNext[threadX];
+	int nextID = cellNext[originalBoid];
 
 	while (nextID > -1) {
-		alignmentVector.x += velocities[nextID].x;
-		alignmentVector.y += velocities[nextID].y;
-		cont++;
+		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
+			alignmentVector.x += velocities[nextID].x;
+			alignmentVector.y += velocities[nextID].y;
+			cont++;
+		}
 		nextID = cellNext[nextID];
 	}
 
@@ -82,9 +80,11 @@ __device__ float2 cohesion(int originalBoid, int firstNeighborBoid, float2 *posi
 	int nextID = cellNext[firstNeighborBoid];
 
 	while (nextID > -1) {
-		cohesionVector.x += positions[nextID].x;
-		cohesionVector.y += positions[nextID].y;
-		cont++;
+		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
+			cohesionVector.x += positions[nextID].x;
+			cohesionVector.y += positions[nextID].y;
+			cont++;
+		}
 		nextID = cellNext[nextID];
 	}
 
@@ -104,10 +104,12 @@ __device__ float2 separation(int originalBoid, int neighbourBoid, float2 *positi
 	int cont = 0;
 	int nextID = cellNext[neighbourBoid];
 
-	while (nextID > -1 && nextID<numberOfBoids) {
-		separationVector.x += positions[nextID].x - positions[originalBoid].x;
-		separationVector.y += positions[nextID].y - positions[originalBoid].y;
-		cont++;
+	while (nextID > -1) {
+		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
+			separationVector.x += positions[nextID].x - positions[originalBoid].x;
+			separationVector.y += positions[nextID].y - positions[originalBoid].y;
+			cont++;
+		}
 		nextID = cellNext[nextID];
 	}
 
@@ -119,9 +121,6 @@ __device__ float2 separation(int originalBoid, int neighbourBoid, float2 *positi
 	}
 	return separationVector;
 }
-
-
-
 
 
 __global__ void DebugPrintNeighbours(int* neighbours, int numberOfCells)

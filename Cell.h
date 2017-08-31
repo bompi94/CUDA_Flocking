@@ -5,7 +5,7 @@
 #include <vector_functions.h>
 #include <stdlib.h>
 
-unsigned int const numberOfCells = 5;
+unsigned int const numberOfCells = 10;
 
 class Cell {
 public:
