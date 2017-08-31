@@ -49,54 +49,17 @@ __device__ __host__ float2 normalizeVector(float2 vector)
 	return vector;
 }
 
-__device__ float2 separation(int threadX, float2 *positions, float2 *velocities, float boidradius, int* cellNext)
-{
-	float2 separationVector = make_float2(0, 0);
-	int cont = 0;
-	int nextID = cellNext[threadX];
-	while (nextID != -1) {
-		separationVector.x += positions[nextID].x - positions[threadX].x;
-		separationVector.y += positions[nextID].y - positions[threadX].y;
-		cont++;
-		nextID = cellNext[nextID];
-	}
 
-	separationVector = vectorDivision(separationVector, cont);
-	separationVector.x *= -1;
-	separationVector.y *= -1;
-	separationVector = normalizeVector(separationVector);
-	return separationVector;
-}
 
-__device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, float boidradius, int* cellNext)
-{
-	float2 cohesionVector = make_float2(0, 0);
-	int cont = 0;
-	int nextID = cellNext[threadX];
 
-	while (nextID != -1) {
-		cohesionVector.x += positions[nextID].x;
-		cohesionVector.y += positions[nextID].y;
-		cont++;
-		nextID = cellNext[nextID];
-	}
-
-	if (cont != 0) {
-		cohesionVector = vectorDivision(cohesionVector, cont);
-		cohesionVector.x -= positions[threadX].x;
-		cohesionVector.y -= positions[threadX].y;
-		cohesionVector = normalizeVector(cohesionVector);
-	}
-	return cohesionVector;
-}
 
 __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius,
 	int* cellNext)
 {
 	float2 alignmentVector = make_float2(0, 0);
 	int cont = 0;
-
 	int nextID = cellNext[threadX];
+
 	while (nextID > -1) {
 		alignmentVector.x += velocities[nextID].x;
 		alignmentVector.y += velocities[nextID].y;
@@ -111,6 +74,55 @@ __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, 
 	alignmentVector = normalizeVector(alignmentVector);
 	return alignmentVector;
 }
+
+__device__ float2 cohesion(int originalBoid, int firstNeighborBoid, float2 *positions, float2 *velocities, float boidradius, int* cellNext)
+{
+	float2 cohesionVector = make_float2(0, 0);
+	int cont = 0;
+	int nextID = cellNext[firstNeighborBoid];
+
+	while (nextID > -1) {
+		cohesionVector.x += positions[nextID].x;
+		cohesionVector.y += positions[nextID].y;
+		cont++;
+		nextID = cellNext[nextID];
+	}
+
+	if (cont != 0) {
+		cohesionVector = vectorDivision(cohesionVector, cont);
+		cohesionVector.x -= positions[originalBoid].x;
+		cohesionVector.y -= positions[originalBoid].y;
+		cohesionVector = normalizeVector(cohesionVector);
+	}
+
+	return cohesionVector;
+}
+
+__device__ float2 separation(int originalBoid, int neighbourBoid, float2 *positions, float2 *velocities, float boidradius, int* cellNext)
+{
+	float2 separationVector = make_float2(0, 0);
+	int cont = 0;
+	int nextID = cellNext[neighbourBoid];
+
+	while (nextID > -1 && nextID<numberOfBoids) {
+		separationVector.x += positions[nextID].x - positions[originalBoid].x;
+		separationVector.y += positions[nextID].y - positions[originalBoid].y;
+		cont++;
+		nextID = cellNext[nextID];
+	}
+
+	if (cont != 0) {
+		separationVector = vectorDivision(separationVector, cont);
+		separationVector.x *= -1;
+		separationVector.y *= -1;
+		separationVector = normalizeVector(separationVector);
+	}
+	return separationVector;
+}
+
+
+
+
 
 __global__ void DebugPrintNeighbours(int* neighbours, int numberOfCells)
 {
@@ -175,9 +187,8 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	float alignmentWeight, cohesionWeight, separationWeight, obstacleAvoidanceWeight;
 	alignmentWeight = 100;
 	cohesionWeight = 100;
-	separationWeight = 101;
+	separationWeight = 100;
 	obstacleAvoidanceWeight = 100;
-	float boidSpeed = 0.003;
 
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight
 		+ cohesionVector.x * cohesionWeight
@@ -188,8 +199,6 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 
 	velocityOfTheBoid.x += obstacleAvoidanceVector.x * obstacleAvoidanceWeight;
 	velocityOfTheBoid.y += obstacleAvoidanceVector.y * obstacleAvoidanceWeight;
-	velocityOfTheBoid = normalizeVector(velocityOfTheBoid);
-	velocityOfTheBoid = vectorMultiplication(velocityOfTheBoid, boidSpeed);
 	return velocityOfTheBoid;
 }
 
