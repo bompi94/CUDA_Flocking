@@ -89,7 +89,7 @@ void prepareCUDADataStructures();
 void freeCUDADataStructures();
 void endApplication();
 void computeFPS();
-__global__  void updateVelocities(float2 *positions,
+__global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
 	int* cellHead, int* cellNext, int* neighbours, float2* temp);
@@ -134,7 +134,7 @@ __global__ void makeMovement(float2* positions, float2* velocities, int*  cellHe
 	cellHead[cellID] = -1;
 }
 
-__global__  void updateVelocities(float2 *positions,
+__global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
 	int* cellHead, int* cellNext, int* neighbours, float2* temp)
@@ -172,7 +172,7 @@ __global__  void updateVelocities(float2 *positions,
 				temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
 				temp[base + 1] = normalizeVector(vectorSum(temp[base + 1], cohesionVector));
 				temp[base + 2] = normalizeVector(vectorSum(temp[base + 2], separationVector));
-				temp[base + 3] = normalizeVector(vectorSum(temp[base + 3], obstacleAvoidanceVector));
+				temp[base + 3] = normalizeVector(obstacleAvoidanceVector);
 			}
 
 		} //endif cell!=-1

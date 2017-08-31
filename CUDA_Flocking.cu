@@ -226,8 +226,9 @@ void callKernel()
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
 		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells);
 	cudaDeviceSynchronize(); 
+	cudaCheckError();
 
-	updateVelocities << <grid, block >> >
+	computeFlocking << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
 			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp);
 	cudaDeviceSynchronize(); 
@@ -236,6 +237,7 @@ void callKernel()
 	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
 		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp);
 	cudaDeviceSynchronize();
+	cudaCheckError();
 }
 
 void calculateBoidsPositions()
@@ -248,6 +250,12 @@ void endApplication()
 {
 	freeCUDADataStructures();
 	free(cells);
+	free(positions); 
+	free(cells); 
+	free(cellNext); 
+	free(cellHead); 
+	free(positions); 
+	free(velocities); 
 	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
@@ -258,6 +266,11 @@ void freeCUDADataStructures()
 	cudaFree(dev_velocities);
 	cudaFree(dev_obstacleCenters);
 	cudaFree(dev_obstacleRadii);
+	cudaFree(dev_temp); 
+	cudaFree(dev_cells); 
+	cudaFree(dev_cellHead); 
+	cudaFree(dev_cellNext); 
+	cudaFree(dev_neighbours); 
 }
 
 void computeFPS()
