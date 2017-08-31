@@ -168,13 +168,8 @@ void prepareCellsCUDADataStructures()
 
 
 	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
-
-
 	int linearizedNeighbours[numberOfCells*numberOfCells*8]; 
-
 	int cont = 0; 
-
-	//scorre tutti i neighbors e li stampa
 	for (int i = 0; i < numberOfCells*numberOfCells; i++)
 	{
 		for (int j = 0; j < 8; j++)
@@ -183,7 +178,6 @@ void prepareCellsCUDADataStructures()
 			cont++; 
 		}
 	}
-
 	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8)*sizeof(int), cudaMemcpyHostToDevice);
 }
 
@@ -220,19 +214,16 @@ void callKernel()
 	cellsSetup << <grid, dim3(threadsPerBlock, 1) >> > (dev_positions, dev_cells, numberOfCells, dev_cellHead, dev_cellNext);
 	cudaDeviceSynchronize();
 	cudaCheckError();
-	printf("a");
 
 	updatePositionsWithVelocities1 << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
 			dev_cellHead, dev_cellNext, dev_neighbours);
 	cudaDeviceSynchronize();
 	cudaCheckError();
-	printf("b");
 
 	cellsReset << <grid, dim3(threadsPerBlock, 1) >> > (dev_positions, dev_cells, numberOfCells, dev_cellHead, dev_cellNext);
 	cudaDeviceSynchronize();
 	cudaCheckError();
-	printf("c"); 
 }
 
 void calculateBoidsPositions()

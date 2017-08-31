@@ -103,7 +103,7 @@ void prepareObstaclesCUDADataStructures();
 void prepareCellsCUDADataStructures();
 __global__ void cellsSetup(float2 *positions,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext); 
+	int* cellHead, int* cellNext);
 __global__ void cellsReset(float2 *positions,
 	Cell* cells, int numberOfCells,
 	int* cellHead, int* cellNext);
@@ -127,29 +127,27 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 
 		if (boidY == 8)
 		{
-			neighbourCellID = cellID; 
-			neighbourBoidIndex = cellHead[neighbourCellID];;
+			neighbourCellID = cellID;
+			neighbourBoidIndex = cellHead[neighbourCellID];
 		}
 
-		//printf("myIndex %d boidY %d mCell %d nCell %d \n", boidIndex, boidY, cellID, neighbourCellID); 
+		if (neighbourBoidIndex != -1) {
+			float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+			float2 cohesionVector = cohesion(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+			float2 separationVector = separation(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+			float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
 
-		float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius,
-			cellID, cellHead, cellNext, neighbours);
+			velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
+				cohesionVector, separationVector, obstacleAvoidanceVector);
 
-		float2 cohesionVector = cohesion(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-
-		float2 separationVector = separation(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-
-		float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
+		}
 		
-		velocities[boidIndex] = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
-			cohesionVector, separationVector, obstacleAvoidanceVector);
-	
 		if (boidY == 8) {
 			positions[boidIndex].x += velocities[boidIndex].x;
 			positions[boidIndex].y += velocities[boidIndex].y;
 			screenOverflow(positions, boidIndex);
-		} 
+		}
+
 	}
 }
 
@@ -158,24 +156,28 @@ __global__ void cellsSetup(float2 *positions,
 	Cell* cells, int numberOfCells,
 	int* cellHead, int* cellNext)
 {
+
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-	__syncthreads(); 
-	int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
-	__syncthreads();
-	cellNext[boidIndex] = lastStartElement;
-	__syncthreads();
+	if (boidIndex < numberOfBoids)
+	{
+		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+		int lastStartElement = atomicExch(&cellHead[cellID], boidIndex);
+		cellNext[boidIndex] = lastStartElement;
+	}
 }
 #endif
+
 
 __global__ void cellsReset(float2 *positions,
 	Cell* cells, int numberOfCells,
 	int* cellHead, int* cellNext)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-	cellNext[boidIndex] = -1;
-	cellHead[cellID] = -1;
+	if (boidIndex < numberOfBoids) {
+		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+		cellNext[boidIndex] = -1;
+		cellHead[cellID] = -1;
+	}
 }
 
 

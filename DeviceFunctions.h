@@ -91,21 +91,23 @@ __device__ float2 cohesion(int threadX, float2 *positions, float2 *velocities, f
 }
 
 __device__ float2 alignment(int threadX, float2 *positions, float2 *velocities, float boidradius,
-	int cellID, int* cellHead, int* cellNext, int* neighbours) //TODO riportarla 
+	int* cellNext)
 {
 	float2 alignmentVector = make_float2(0, 0);
 	int cont = 0;
 
-	//considers the cell the boid is in at the moment
 	int nextID = cellNext[threadX];
-	while (nextID != -1) {
+	while (nextID > -1) {
 		alignmentVector.x += velocities[nextID].x;
 		alignmentVector.y += velocities[nextID].y;
 		cont++;
 		nextID = cellNext[nextID];
 	}
 
-	alignmentVector = vectorDivision(alignmentVector, cont);
+	if (cont != 0) {
+		alignmentVector = vectorDivision(alignmentVector, cont);
+	}
+
 	alignmentVector = normalizeVector(alignmentVector);
 	return alignmentVector;
 }
