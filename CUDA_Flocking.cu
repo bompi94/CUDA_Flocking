@@ -16,6 +16,8 @@ int** neighbours;
 
 int* dev_neighbours;
 
+float2* dev_temp;
+
 //Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError() {                                          \
  cudaError_t e=cudaGetLastError();                                 \
@@ -145,6 +147,16 @@ void prepareBoidCUDADataStructures()
 	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
 	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
 	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+
+	float2 temp[4 * numberOfBoids];
+	for (size_t i = 0; i < 4 * numberOfBoids; i++)
+	{
+		temp[i] = make_float2(0, 0);
+	}
+
+	cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
+	cudaMemcpy(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice);
+
 }
 
 void prepareObstaclesCUDADataStructures()
@@ -215,10 +227,15 @@ void callKernel()
 		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells);
 	cudaDeviceSynchronize(); 
 
-	updatePositionsWithVelocities1 << <grid, block >> >
+	updateVelocities << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
-			dev_cellHead, dev_cellNext, dev_neighbours);
+			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp);
+	cudaDeviceSynchronize(); 
 	cudaCheckError();
+
+	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
+		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp);
+	cudaDeviceSynchronize();
 }
 
 void calculateBoidsPositions()

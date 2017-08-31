@@ -67,9 +67,9 @@ __device__ float2 alignment(int originalBoid, float2 *positions, float2 *velocit
 
 	if (cont != 0) {
 		alignmentVector = vectorDivision(alignmentVector, cont);
+		alignmentVector = normalizeVector(alignmentVector);
 	}
 
-	alignmentVector = normalizeVector(alignmentVector);
 	return alignmentVector;
 }
 
@@ -186,7 +186,7 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	float alignmentWeight, cohesionWeight, separationWeight, obstacleAvoidanceWeight;
 	alignmentWeight = 100;
 	cohesionWeight = 100;
-	separationWeight = 100;
+	separationWeight = 105;
 	obstacleAvoidanceWeight = 100;
 
 	velocityOfTheBoid.x += alignmentVector.x * alignmentWeight

@@ -89,10 +89,10 @@ void prepareCUDADataStructures();
 void freeCUDADataStructures();
 void endApplication();
 void computeFPS();
-__global__  void updatePositionsWithVelocities1(float2 *positions,
+__global__  void updateVelocities(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours);
+	int* cellHead, int* cellNext, int* neighbours, float2* temp);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -113,14 +113,35 @@ __global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell
 	cellNext[boidIndex] = lastStartElement;
 }
 
-__global__  void updatePositionsWithVelocities1(float2 *positions,
+__global__ void makeMovement(float2* positions, float2* velocities, int*  cellHead, int* cellNext, Cell* cells, int numberOfCells,float2* temp)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+	int base = boidIndex * 4; 
+
+	float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex],
+		temp[base + 0], temp[base + 1], temp[base + 2], temp[base + 3]);
+	boidVelocity = normalizeVector(boidVelocity); 
+	boidVelocity = vectorMultiplication(boidVelocity, 0.003); 
+
+	velocities[boidIndex].x = boidVelocity.x; 
+	velocities[boidIndex].y = boidVelocity.y;
+
+	positions[boidIndex] = vectorSum(positions[boidIndex] , velocities[boidIndex]);
+	screenOverflow(positions, boidIndex);
+
+	cellNext[boidIndex] = -1;
+	cellHead[cellID] = -1;
+}
+
+__global__  void updateVelocities(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours)
+	int* cellHead, int* cellNext, int* neighbours, float2* temp)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int boidY = threadIdx.y;
-	int specialBoid = 0;
+	int specialBoid = 8;
 
 	if (boidIndex < numberOfBoids)
 	{
@@ -129,17 +150,15 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 		if (cellID != -1)
 		{
 			int neighbourCellID = neighbours[(cellID * 8) + boidY % 8];
-			int neighbourBoidIndex = cellHead[neighbourCellID];
 
 			if (boidY == specialBoid)
 			{
-				neighbourCellID = cellID;
-				neighbourBoidIndex = boidIndex;
+				neighbourCellID = cellID; 
 			}
 
+			int neighbourBoidIndex = cellHead[neighbourCellID];
 
 			if (neighbourBoidIndex != -1) {
-
 				float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 				float2 cohesionVector = cohesion(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 				float2 separationVector = separation(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
@@ -149,25 +168,11 @@ __global__  void updatePositionsWithVelocities1(float2 *positions,
 				float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 					cohesionVector, separationVector, obstacleAvoidanceVector);
 
-				float2 v = velocities[boidIndex];
-				v = vectorSum(v, boidVelocity);
-				velocities[boidIndex] = v;
-			}
-
-			if (boidY == specialBoid)
-			{
-				float2 v = normalizeVector(velocities[boidIndex]);
-				v = vectorMultiplication(v, 0.003); //multiply by boidSpeed
-				velocities[boidIndex] = v;
-
-				float2 vv = positions[boidIndex];
-				vv = vectorSum(vv, velocities[boidIndex]);
-				positions[boidIndex] = vv;
-
-				screenOverflow(positions, boidIndex);
-
-				cellNext[boidIndex] = -1;
-				cellHead[cellID] = -1;
+				int base = boidIndex * 4; 
+				temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
+				temp[base + 1] = normalizeVector(vectorSum(temp[base + 1], cohesionVector));
+				temp[base + 2] = normalizeVector(vectorSum(temp[base + 2], separationVector));
+				temp[base + 3] = normalizeVector(vectorSum(temp[base + 3], obstacleAvoidanceVector));
 			}
 
 		} //endif cell!=-1
