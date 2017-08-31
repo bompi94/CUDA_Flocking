@@ -31,6 +31,7 @@ float2* dev_temp;
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
+	printf("secondo approccio boids -> %d\n", numberOfBoids);
 	glutMainLoop();
 	endApplication();
 }
@@ -180,17 +181,17 @@ void prepareCellsCUDADataStructures()
 
 
 	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
-	int linearizedNeighbours[numberOfCells*numberOfCells*8]; 
-	int cont = 0; 
+	int linearizedNeighbours[numberOfCells*numberOfCells * 8];
+	int cont = 0;
 	for (int i = 0; i < numberOfCells*numberOfCells; i++)
 	{
 		for (int j = 0; j < 8; j++)
 		{
-			linearizedNeighbours[cont] =  neighbours[i][j];
-			cont++; 
+			linearizedNeighbours[cont] = neighbours[i][j];
+			cont++;
 		}
 	}
-	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8)*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice);
 }
 
 void startOfFrame()
@@ -225,13 +226,13 @@ void callKernel()
 
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
 		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells);
-	cudaDeviceSynchronize(); 
+	cudaDeviceSynchronize();
 	cudaCheckError();
 
 	computeFlocking << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
 			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp);
-	cudaDeviceSynchronize(); 
+	cudaDeviceSynchronize();
 	cudaCheckError();
 
 	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
@@ -250,12 +251,12 @@ void endApplication()
 {
 	freeCUDADataStructures();
 	free(cells);
-	free(positions); 
-	free(cells); 
-	free(cellNext); 
-	free(cellHead); 
-	free(positions); 
-	free(velocities); 
+	free(positions);
+	free(cells);
+	free(cellNext);
+	free(cellHead);
+	free(positions);
+	free(velocities);
 	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
@@ -266,11 +267,11 @@ void freeCUDADataStructures()
 	cudaFree(dev_velocities);
 	cudaFree(dev_obstacleCenters);
 	cudaFree(dev_obstacleRadii);
-	cudaFree(dev_temp); 
-	cudaFree(dev_cells); 
-	cudaFree(dev_cellHead); 
-	cudaFree(dev_cellNext); 
-	cudaFree(dev_neighbours); 
+	cudaFree(dev_temp);
+	cudaFree(dev_cells);
+	cudaFree(dev_cellHead);
+	cudaFree(dev_cellNext);
+	cudaFree(dev_neighbours);
 }
 
 void computeFPS()
@@ -322,12 +323,8 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	switch (key)
 	{
 	case (27):
-#if defined(__APPLE__) || defined(MACOSX)
-		exit(EXIT_SUCCESS);
-#else
 		glutDestroyWindow(glutGetWindow());
 		return;
-#endif
 	}
 }
 
