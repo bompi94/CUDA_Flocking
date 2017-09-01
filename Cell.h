@@ -33,6 +33,7 @@ public:
 		y0 = topLeftCorner.y;
 		x1 = x0 + side;
 		y1 = y0 - side;
+
 		bool correctX = position.x >= x0 && position.x <= x1;
 		bool correctY = position.y <= y0 && position.y >= y1;
 		return correctX && correctY;

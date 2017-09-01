@@ -110,10 +110,12 @@ __global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell
 
 	if (boidIndex < numberOfBoids) {
 		int cellID = GetCellId(boidXCellsIDs[boidIndex], neighbours, cells, positions[boidIndex], numberOfCells);
+
 		int lastStartElement = cellHead[cellID];
 		cellHead[cellID] = boidIndex;
 		cellNext[boidIndex] = lastStartElement;
 		boidXCellsIDs[boidIndex] = cellID;
+
 	}
 }
 
@@ -166,15 +168,18 @@ __global__  void computeFlocking(float2 *positions,
 
 			int neighbourBoidIndex = cellHead[neighbourCellID];
 
-			if (neighbourBoidIndex != -1) {
+			if (neighbourBoidIndex != -1)
+			{
+				//float2* alCoSeArray = alCoSe(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+				//float2 alignmentVector = alCoSeArray[0];
+				//float2 cohesionVector = alCoSeArray[1];
+				//float2 separationVector = alCoSeArray[2];
+
 				float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 				float2 cohesionVector = cohesion(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 				float2 separationVector = separation(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 
 				float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
-
-				float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
-					cohesionVector, separationVector, obstacleAvoidanceVector);
 
 				int base = boidIndex * 4;
 				temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
@@ -184,49 +189,57 @@ __global__  void computeFlocking(float2 *positions,
 			}
 
 		} //endif cell!=-1
-
 	} // endif boidIndex < numberOfBoids
 }
 
 
 __device__ int GetCellId(int myCellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells)
 {
+	//don't have a cell yet, so i search it through all the cells
 	if (myCellID == -1)
 	{
-		//printf("-1 qui con boid alla pos %f %f ", pos.x , pos.y); 
 		for (int i = 0; i < numberOfCells*numberOfCells; i++)
 		{
 			if (cells[i].IsPositionInCell(pos))
 				return cells[i].id;
 		}
 	}
-	else
+
+	//check if I'm still in my cell
+	if (cells[myCellID].IsPositionInCell(pos))
+		return cells[myCellID].id;
+
+
+	//changing cell, search the next in the neighbours of my cell
+	for (int i = 0; i < 8; i++)
 	{
-		//printf("not -1 "); 
-		if (cells[myCellID].IsPositionInCell(pos))
-			return cells[myCellID].id;
-		else {
-			//printf("changing cell "); 
-			for (int i = 0; i < 8; i++)
-			{
-				if (cells[neighbours[myCellID*8 + i]].IsPositionInCell(pos))
-					return cells[neighbours[myCellID*8 + i]].id;
-			}
-		}
+		int base = myCellID * 8;
+		int currentNeighbourIndex = neighbours[base + i];
+		Cell currentNeighbour = cells[currentNeighbourIndex];
+		if (currentNeighbour.IsPositionInCell(pos))
+			return currentNeighbour.id;
 	}
-	//printf("ancora -1 qui con boid alla pos %f %f \n", pos.x, pos.y);
+	printf("oh no\n"); 
 	return -1;
 }
 
 __device__ void screenOverflow(float2 *positions, int boidIndex)
 {
-	float limit = 0.99;
-	if (positions[boidIndex].x > limit || positions[boidIndex].x < -limit)
+	float limit = 1;
+	if (positions[boidIndex].x >= limit || positions[boidIndex].x <= -limit)
 	{
+		if (positions[boidIndex].x > 0)
+			positions[boidIndex].x = limit - 0.001;
+		if (positions[boidIndex].x < 0)
+			positions[boidIndex].x = -limit + 0.001;
 		positions[boidIndex].x *= -1;
 	}
-	if (positions[boidIndex].y > limit || positions[boidIndex].y < -limit)
+	if (positions[boidIndex].y >= limit || positions[boidIndex].y <= -limit)
 	{
+		if (positions[boidIndex].y > 0)
+			positions[boidIndex].y = limit - 0.001;
+		if (positions[boidIndex].y < 0)
+			positions[boidIndex].y = -limit + 0.001;
 		positions[boidIndex].y *= -1;
 	}
 }

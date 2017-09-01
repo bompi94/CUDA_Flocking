@@ -6,17 +6,27 @@ Graphics graphics;
 Cell* cells;
 Cell* dev_cells;
 
+//array that associates cells with the last boid to be registered in it
+//if i take cell 
 int* cellHead;
-int* dev_cellHead,
+int* dev_cellHead;
 
+//array that represents a chain of boids, every index is corresponding to the boid index and in every 
+//cell there is the index of the next boid
 int* cellNext;
 int* dev_cellNext;
 
+//array that associates a cell with its neighbours indices
+//every cell has 8 neighbours
+//to find the neighbours of cell x you have to index 
+//neighbour[x+i], i goes from 0 to 7
 int** neighbours;
-
 int* dev_neighbours;
+
+//remembers the cell every boid is in 
 int* dev_boidXCellsIDs; 
 
+//stores the flocking vectors in between kernels
 float2* dev_temp;
 
 cudaStream_t stream1;
@@ -31,11 +41,10 @@ cudaError_t streamResult;
  }                                                                 \
 }
 
-
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
-	printf("terzo approccio boids -> %d\n", numberOfBoids);
+	printf("terzo approccio corretto boids -> %d\n", numberOfBoids);
 	glutMainLoop();
 	endApplication();
 }
@@ -80,15 +89,15 @@ void prepareCells()
 {
 	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells);
 
-	float side = (float)2.1 / numberOfCells;
-	float x = -1.05;
-	float y = 1.05;
+	float side = (float)2 / numberOfCells;
+	float x = -1;
+	float y = 1;
 
 	unsigned int id = 0;
 
 	for (int i = 0; i < numberOfCells; i++)
 	{
-		x = -1.05;
+		x = -1;
 		for (int j = 0; j < numberOfCells; j++)
 		{
 
@@ -103,11 +112,14 @@ void prepareCells()
 
 	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells);
 	cellNext = (int*)malloc(sizeof(int) * numberOfBoids);
-	//this initialization is useful in the kernel because -1 represents the end of references
+
+	//-1 represents an invalid boid index for the cell, it means that the cell is empty	
 	for (int i = 0; i < numberOfCells * numberOfCells; i++)
 	{
 		cellHead[i] = -1;
 	}
+
+	//-1 represents the end of the chain of references for the cell, no more boids in the cell
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		cellNext[i] = -1;
