@@ -18,6 +18,9 @@ int* dev_neighbours;
 
 float2* dev_temp;
 
+cudaStream_t stream1;
+cudaError_t streamResult;
+
 //Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError() {                                          \
  cudaError_t e=cudaGetLastError();                                 \
@@ -137,6 +140,7 @@ void prepareGraphicsToRenderBoids(GLuint *vbo)
 
 void prepareCUDADataStructures()
 {
+	printf("starting to prepare\n");
 	prepareBoidCUDADataStructures();
 	prepareObstaclesCUDADataStructures();
 	prepareCellsCUDADataStructures();
@@ -146,11 +150,13 @@ void prepareBoidCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
 	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+
 	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
 	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
 
-	float2 temp[4 * numberOfBoids];
-	for (size_t i = 0; i < 4 * numberOfBoids; i++)
+	float2* temp = (float2*)malloc(4 * numberOfBoids * sizeof(float2)); 
+
+	for (int i = 0; i < 4 * numberOfBoids; i++)
 	{
 		temp[i] = make_float2(0, 0);
 	}
@@ -219,6 +225,13 @@ void display()
 
 void callKernel()
 {
+
+	//WIP
+	//streamResult = cudaStreamCreate(&stream1);
+	//streamResult = cudaMemcpyAsync(d_a, a, N, cudaMemcpyHostToDevice, stream1);
+	//streamResult = cudaStreamDestroy(stream1);
+	//WIP
+
 	int threadsPerBlock = 32;
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
