@@ -32,6 +32,11 @@ float2* dev_temp;
 cudaStream_t stream1;
 cudaError_t streamResult;
 
+//boid i is defined by positions[i] and velocities[i]
+float2* positions;
+float2* velocities;
+float2 *dev_positions, *dev_velocities;
+
 //Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError() {                                          \
  cudaError_t e=cudaGetLastError();                                 \
@@ -44,8 +49,8 @@ cudaError_t streamResult;
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
-	printf("terzo approccio corretto boids -> %d\n", numberOfBoids);
-	glutMainLoop();
+	printf("quinto (stream) approccio boids -> %d\n", numberOfBoids);
+	//glutMainLoop();
 	endApplication();
 }
 
@@ -59,9 +64,13 @@ void startApplication(int argc, char **argv)
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
-	prepareCells();
-	prepareGraphicsToRenderBoids(&vbo);
-	prepareCUDADataStructures();
+	//prepareCells();
+	//prepareGraphicsToRenderBoids(&vbo);
+	//prepareCUDADataStructures();
+
+	//prepare streams
+	streamResult = cudaStreamCreate(&stream1);
+
 }
 
 void registerGlutCallbacks()
@@ -75,6 +84,9 @@ void registerGlutCallbacks()
 
 void preparePositionsAndVelocitiesArray()
 {
+	cudaMallocHost((void**)&positions, numberOfBoids * sizeof(float2));
+	cudaMallocHost((void**)&velocities, numberOfBoids * sizeof(float2));
+
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		int a = Helper::randomMinusOneOrOneInt();
@@ -83,6 +95,8 @@ void preparePositionsAndVelocitiesArray()
 		velocities[i] = normalizeVector(velocities[i]);
 		positions[i] = make_float2(Helper::randomMinusOneOrOneFloat(), Helper::randomMinusOneOrOneFloat());
 	}
+
+	prepareBoidCUDADataStructures(); 
 }
 
 void prepareCells()
@@ -162,22 +176,25 @@ void prepareCUDADataStructures()
 void prepareBoidCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
-	cudaMemcpy(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
 
 	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
-	cudaMemcpy(dev_velocities, velocities, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
 
-	float2* temp = (float2*)malloc(4 * numberOfBoids * sizeof(float2)); 
 
-	for (int i = 0; i < 4 * numberOfBoids; i++)
-	{
-		temp[i] = make_float2(0, 0);
-	}
 
-	cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
-	cudaMemcpy(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice);
 
-	free(temp);
+	//float2* temp = (float2*)malloc(4 * numberOfBoids * sizeof(float2)); 
+
+	//for (int i = 0; i < 4 * numberOfBoids; i++)
+	//{
+	//	temp[i] = make_float2(0, 0);
+	//}
+
+	//cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
+	//cudaMemcpy(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice);
+
+	//free(temp);
 }
 
 void prepareObstaclesCUDADataStructures()
@@ -248,12 +265,6 @@ void display()
 void callKernel()
 {
 
-	//WIP
-	//streamResult = cudaStreamCreate(&stream1);
-	//streamResult = cudaMemcpyAsync(d_a, a, N, cudaMemcpyHostToDevice, stream1);
-	//streamResult = cudaStreamDestroy(stream1);
-	//WIP
-
 	int threadsPerBlock = 32;
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
@@ -285,14 +296,8 @@ void calculateBoidsPositions()
 
 void endApplication()
 {
-	freeCUDADataStructures();
-	free(cells);
-	free(positions);
-	free(cells);
-	free(cellNext);
-	free(cellHead);
-	free(positions);
-	free(velocities);
+	//freeCUDADataStructures();
+
 	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

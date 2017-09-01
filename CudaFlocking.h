@@ -67,10 +67,7 @@ char **pArgv = NULL;
 float2 *pos;
 int movementTime = 1;
 int timecount = 0;
-//boid i is defined by positions[i] and velocities[i]
-float2 positions[numberOfBoids];
-float2 velocities[numberOfBoids];
-float2 *dev_positions, *dev_velocities;
+
 
 void display();
 void keyboard(unsigned char key, int x, int y);

@@ -52,15 +52,15 @@ __device__ __host__ float2 normalizeVector(float2 vector)
 //alignment in 0, cohesion in 1, separation in 2
 __device__ float2* alCoSe(int originalBoid, int firstNeighborBoid, float2 *positions, float2 *velocities, float boidradius, int* cellNext)
 {
-	float2 res[3]; 
-	float2 alignmentVector, cohesionVector, separationVector; 
-	alignmentVector = cohesionVector = separationVector = make_float2(0, 0); 
+	float2 res[3];
+	float2 alignmentVector, cohesionVector, separationVector;
+	alignmentVector = cohesionVector = separationVector = make_float2(0, 0);
 
 	int neighbourCount = 0;
 	int nextID = cellNext[originalBoid];
 
 	//loops through every boid in the cell
-	while (nextID > -1) 
+	while (nextID > -1)
 	{
 		//if the boid is actually a neighbor
 		if (originalBoid != nextID && distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius)
@@ -72,7 +72,7 @@ __device__ float2* alCoSe(int originalBoid, int firstNeighborBoid, float2 *posit
 			//cohesion sum
 			cohesionVector.x += positions[nextID].x;
 			cohesionVector.y += positions[nextID].y;
-			
+
 			//separation sum
 			separationVector.x += positions[nextID].x - positions[originalBoid].x;
 			separationVector.y += positions[nextID].y - positions[originalBoid].y;
@@ -83,7 +83,7 @@ __device__ float2* alCoSe(int originalBoid, int firstNeighborBoid, float2 *posit
 		nextID = cellNext[nextID];
 	}
 
-	if (neighbourCount != 0) 
+	if (neighbourCount != 0)
 	{
 		//alignment wrap up
 		alignmentVector = vectorDivision(alignmentVector, neighbourCount);
@@ -102,10 +102,10 @@ __device__ float2* alCoSe(int originalBoid, int firstNeighborBoid, float2 *posit
 		separationVector = normalizeVector(separationVector);
 	}
 
-	res[0] = alignmentVector; 
-	res[1] = cohesionVector; 
-	res[2] = separationVector; 
-	return res; 
+	res[0] = alignmentVector;
+	res[1] = cohesionVector;
+	res[2] = separationVector;
+	return res;
 }
 
 __device__ float2 alignment(int originalBoid, float2 *positions, float2 *velocities, float boidradius,
@@ -116,7 +116,7 @@ __device__ float2 alignment(int originalBoid, float2 *positions, float2 *velocit
 	int nextID = cellNext[originalBoid];
 
 	while (nextID > -1) {
-		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) 
+		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius)
 		{
 			alignmentVector.x += velocities[nextID].x;
 			alignmentVector.y += velocities[nextID].y;
@@ -165,7 +165,7 @@ __device__ float2 separation(int originalBoid, int neighbourBoid, float2 *positi
 	int nextID = cellNext[neighbourBoid];
 
 	while (nextID > -1) {
-		if ( distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
+		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
 			separationVector.x += positions[nextID].x - positions[originalBoid].x;
 			separationVector.y += positions[nextID].y - positions[originalBoid].y;
 			cont++;
@@ -192,6 +192,13 @@ __global__ void DebugPrintNeighbours(int* neighbours, int numberOfCells)
 			printf("vicini di %d \n", i / 8);
 		printf("  %d\n", neighbours[i]);
 	}
+}
+
+__global__ void testStreamKernel(float2* positions)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	if (boidIndex < numberOfBoids)
+		printf("%f %f \n", positions[boidIndex].x, positions[boidIndex].y);
 }
 
 __device__ __host__ float2 vectorSum(float2 vector1, float2 vector2)
