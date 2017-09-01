@@ -92,7 +92,7 @@ void computeFPS();
 __global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours, float2* temp);
+	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -101,43 +101,51 @@ __device__ void screenOverflow(float2 *positions, int boidIndex);
 void prepareBoidCUDADataStructures();
 void prepareObstaclesCUDADataStructures();
 void prepareCellsCUDADataStructures();
-__device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells);
+__device__ int GetCellId(int cellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells);
 
 
-__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells)
+__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, int* boidXCellsIDs, int* neighbours)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-	int lastStartElement = cellHead[cellID];
-	cellHead[cellID] = boidIndex;
-	cellNext[boidIndex] = lastStartElement;
+
+	if (boidIndex < numberOfBoids) {
+		int cellID = GetCellId(boidXCellsIDs[boidIndex], neighbours, cells, positions[boidIndex], numberOfCells);
+		int lastStartElement = cellHead[cellID];
+		cellHead[cellID] = boidIndex;
+		cellNext[boidIndex] = lastStartElement;
+		boidXCellsIDs[boidIndex] = cellID;
+	}
 }
 
-__global__ void makeMovement(float2* positions, float2* velocities, int*  cellHead, int* cellNext, Cell* cells, int numberOfCells,float2* temp)
+__global__ void makeMovement(float2* positions, float2* velocities,
+	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
-	int base = boidIndex * 4; 
 
-	float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex],
-		temp[base + 0], temp[base + 1], temp[base + 2], temp[base + 3]);
-	boidVelocity = normalizeVector(boidVelocity); 
-	boidVelocity = vectorMultiplication(boidVelocity, 0.003); 
+	if (boidIndex < numberOfBoids) {
+		int cellID = boidXCellsIds[boidIndex];
+		int base = boidIndex * 4;
 
-	velocities[boidIndex].x = boidVelocity.x; 
-	velocities[boidIndex].y = boidVelocity.y;
+		float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex],
+			temp[base + 0], temp[base + 1], temp[base + 2], temp[base + 3]);
+		boidVelocity = normalizeVector(boidVelocity);
+		boidVelocity = vectorMultiplication(boidVelocity, 0.003);
 
-	positions[boidIndex] = vectorSum(positions[boidIndex] , velocities[boidIndex]);
-	screenOverflow(positions, boidIndex);
+		velocities[boidIndex].x = boidVelocity.x;
+		velocities[boidIndex].y = boidVelocity.y;
 
-	cellNext[boidIndex] = -1;
-	cellHead[cellID] = -1;
+		positions[boidIndex] = vectorSum(positions[boidIndex], velocities[boidIndex]);
+		screenOverflow(positions, boidIndex);
+
+		cellNext[boidIndex] = -1;
+		cellHead[cellID] = -1;
+	}
 }
 
 __global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours, float2* temp)
+	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int boidY = threadIdx.y;
@@ -145,7 +153,7 @@ __global__  void computeFlocking(float2 *positions,
 
 	if (boidIndex < numberOfBoids)
 	{
-		int cellID = GetCellId(cells, positions[boidIndex], numberOfCells);
+		int cellID = boidXCellsIDs[boidIndex];
 
 		if (cellID != -1)
 		{
@@ -153,7 +161,7 @@ __global__  void computeFlocking(float2 *positions,
 
 			if (boidY == specialBoid)
 			{
-				neighbourCellID = cellID; 
+				neighbourCellID = cellID;
 			}
 
 			int neighbourBoidIndex = cellHead[neighbourCellID];
@@ -168,7 +176,7 @@ __global__  void computeFlocking(float2 *positions,
 				float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex], alignmentVector,
 					cohesionVector, separationVector, obstacleAvoidanceVector);
 
-				int base = boidIndex * 4; 
+				int base = boidIndex * 4;
 				temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
 				temp[base + 1] = normalizeVector(vectorSum(temp[base + 1], cohesionVector));
 				temp[base + 2] = normalizeVector(vectorSum(temp[base + 2], separationVector));
@@ -177,13 +185,38 @@ __global__  void computeFlocking(float2 *positions,
 
 		} //endif cell!=-1
 
-		else {
-			positions[boidIndex] = make_float2(0, 0);
-		}
-
 	} // endif boidIndex < numberOfBoids
 }
 
+
+__device__ int GetCellId(int myCellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells)
+{
+	if (myCellID == -1)
+	{
+		//printf("-1 qui con boid alla pos %f %f ", pos.x , pos.y); 
+		for (int i = 0; i < numberOfCells*numberOfCells; i++)
+		{
+			if (cells[i].IsPositionInCell(pos))
+				return cells[i].id;
+		}
+	}
+	else
+	{
+		//printf("not -1 "); 
+		if (cells[myCellID].IsPositionInCell(pos))
+			return cells[myCellID].id;
+		else {
+			//printf("changing cell "); 
+			for (int i = 0; i < 8; i++)
+			{
+				if (cells[neighbours[myCellID*8 + i]].IsPositionInCell(pos))
+					return cells[neighbours[myCellID*8 + i]].id;
+			}
+		}
+	}
+	//printf("ancora -1 qui con boid alla pos %f %f \n", pos.x, pos.y);
+	return -1;
+}
 
 __device__ void screenOverflow(float2 *positions, int boidIndex)
 {
@@ -196,17 +229,6 @@ __device__ void screenOverflow(float2 *positions, int boidIndex)
 	{
 		positions[boidIndex].y *= -1;
 	}
-}
-
-__device__ int GetCellId(Cell* cells, float2 pos, int numberOfCells)
-{
-	for (int i = 0; i < numberOfCells*numberOfCells; i++)
-	{
-		if (cells[i].IsPositionInCell(pos))
-			return cells[i].id;
-	}
-
-	return -1;
 }
 
 #endif //CUDAFLOCKING_H

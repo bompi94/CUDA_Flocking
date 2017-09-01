@@ -15,6 +15,7 @@ int* dev_cellNext;
 int** neighbours;
 
 int* dev_neighbours;
+int* dev_boidXCellsIDs; 
 
 float2* dev_temp;
 
@@ -34,7 +35,7 @@ cudaError_t streamResult;
 int main(int argc, char **argv)
 {
 	startApplication(argc, argv);
-	printf("secondo approccio boids -> %d\n", numberOfBoids);
+	printf("terzo approccio boids -> %d\n", numberOfBoids);
 	glutMainLoop();
 	endApplication();
 }
@@ -164,6 +165,7 @@ void prepareBoidCUDADataStructures()
 	cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
 	cudaMemcpy(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice);
 
+	free(temp);
 }
 
 void prepareObstaclesCUDADataStructures()
@@ -198,6 +200,14 @@ void prepareCellsCUDADataStructures()
 		}
 	}
 	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice);
+
+	int* bxci = (int*)malloc(numberOfBoids* sizeof(int));
+	for (int i = 0; i < numberOfBoids; i++)
+	{
+		bxci[i] = -1; 
+	}
+	cudaMalloc((void**)&dev_boidXCellsIDs, sizeof(int)*numberOfBoids); 
+	cudaMemcpy(dev_boidXCellsIDs, bxci, sizeof(int)*numberOfBoids, cudaMemcpyHostToDevice);
 }
 
 void startOfFrame()
@@ -237,19 +247,20 @@ void callKernel()
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
 	dim3 block(threadsPerBlock, 9);
 
+
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells);
+		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours);
 	cudaDeviceSynchronize();
 	cudaCheckError();
 
 	computeFlocking << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
-			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp);
+			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs);
 	cudaDeviceSynchronize();
 	cudaCheckError();
 
 	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp);
+		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs);
 	cudaDeviceSynchronize();
 	cudaCheckError();
 }
