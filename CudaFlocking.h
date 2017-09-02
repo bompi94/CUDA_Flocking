@@ -68,6 +68,7 @@ float2 *pos;
 int movementTime = 1;
 int timecount = 0;
 
+const int numStreams = 3;
 
 void display();
 void keyboard(unsigned char key, int x, int y);
@@ -82,14 +83,13 @@ void calculateBoidsPositions();
 void registerGlutCallbacks();
 void preparePositionsAndVelocitiesArray();
 void prepareCells();
-void prepareCUDADataStructures();
 void freeCUDADataStructures();
 void endApplication();
 void computeFPS();
 __global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs);
+	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int offset);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -101,25 +101,25 @@ void prepareCellsCUDADataStructures();
 __device__ int GetCellId(int cellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells);
 
 
-__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, int* boidXCellsIDs, int* neighbours)
+__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, int* boidXCellsIDs, int* neighbours,int streamNumber)
 {
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / numStreams;
+	if (boidIndex < numberOfBoids) { 
 
-	if (boidIndex < numberOfBoids) {
 		int cellID = GetCellId(boidXCellsIDs[boidIndex], neighbours, cells, positions[boidIndex], numberOfCells);
 
 		int lastStartElement = cellHead[cellID];
 		cellHead[cellID] = boidIndex;
 		cellNext[boidIndex] = lastStartElement;
 		boidXCellsIDs[boidIndex] = cellID;
-
 	}
 }
 
 __global__ void makeMovement(float2* positions, float2* velocities,
-	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds)
+	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds, int streamNumber)
 {
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / numStreams;
+
 
 	if (boidIndex < numberOfBoids) {
 		int cellID = boidXCellsIds[boidIndex];
@@ -144,9 +144,10 @@ __global__ void makeMovement(float2* positions, float2* velocities,
 __global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs)
+	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int streamNumber)
 {
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber * numberOfBoids/numStreams;
+
 	unsigned int boidY = threadIdx.y;
 	int specialBoid = 8;
 
@@ -167,10 +168,6 @@ __global__  void computeFlocking(float2 *positions,
 
 			if (neighbourBoidIndex != -1)
 			{
-				//float2* alCoSeArray = alCoSe(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-				//float2 alignmentVector = alCoSeArray[0];
-				//float2 cohesionVector = alCoSeArray[1];
-				//float2 separationVector = alCoSeArray[2];
 
 				float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
 				float2 cohesionVector = cohesion(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);

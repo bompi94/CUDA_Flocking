@@ -60,6 +60,8 @@ void Graphics::saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int num
 {
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 	glBufferData(GL_ARRAY_BUFFER, numberOfBoids * sizeof(float), &boidVertices[0], GL_DYNAMIC_DRAW);
+	loadBoidsVertices(vbo);
+	loadBoidsColor(vbo);
 }
 
 void Graphics::loadBoidsVertices(GLuint * vbo)

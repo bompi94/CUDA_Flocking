@@ -24,7 +24,7 @@ int** neighbours;
 int* dev_neighbours;
 
 //remembers the cell every boid is in 
-int* dev_boidXCellsIDs; 
+int* dev_boidXCellsIDs;
 
 //stores the flocking vectors in between kernels
 float2* dev_temp;
@@ -36,6 +36,9 @@ cudaError_t streamResult;
 float2* positions;
 float2* velocities;
 float2 *dev_positions, *dev_velocities;
+
+cudaStream_t streams[numStreams];
+int offset = numberOfBoids / numStreams;
 
 //Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError() {                                          \
@@ -50,7 +53,7 @@ int main(int argc, char **argv)
 {
 	printf("quinto (stream) approccio boids -> %d\n", numberOfBoids);
 	startApplication(argc, argv);
-	//glutMainLoop();
+	glutMainLoop();
 	endApplication();
 }
 
@@ -62,14 +65,18 @@ void startApplication(int argc, char **argv)
 	sdkCreateTimer(&timer);
 	graphics.initialize(&argc, argv);
 	registerGlutCallbacks();
+
+	//prepare streams
+
+	for (size_t i = 0; i < numStreams; i++)
+	{
+		cudaStreamCreate(&streams[i]);
+	}
+
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
 	prepareCells();
-	//prepareGraphicsToRenderBoids(&vbo);
-
-	//prepare streams
-	streamResult = cudaStreamCreate(&stream1);
-
+	prepareGraphicsToRenderBoids(&vbo);
 }
 
 void registerGlutCallbacks()
@@ -79,6 +86,7 @@ void registerGlutCallbacks()
 	glutKeyboardFunc(keyboard);
 	glutMouseFunc(mouse);
 	glutCloseFunc(cleanup);
+	printf("registered glut callbacks\n");
 }
 
 void preparePositionsAndVelocitiesArray()
@@ -95,16 +103,25 @@ void preparePositionsAndVelocitiesArray()
 		positions[i] = make_float2(Helper::randomMinusOneOrOneFloat(), Helper::randomMinusOneOrOneFloat());
 	}
 	printf("prepared positions and velocities\n");
-	prepareBoidCUDADataStructures(); 
+	prepareBoidCUDADataStructures();
 }
 
 void prepareBoidCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
-	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
+	for (size_t i = 0; i < numStreams; i++)
+	{
+		cudaMemcpyAsync(&dev_positions[i*offset], &positions[i*offset], offset * sizeof(float2), cudaMemcpyHostToDevice, streams[i]);
+	}
+
 
 	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
-	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
+	for (size_t i = 0; i < numStreams; i++)
+	{
+		cudaMemcpyAsync(&dev_velocities[i*offset], &velocities[i*offset], offset * sizeof(float2), cudaMemcpyHostToDevice, streams[i]);
+	}
+
+	//POSSIBILE PROBLEMA DI RESTO? 
 
 	float2* temp;
 	cudaMallocHost((void**)&temp, 4 * numberOfBoids * sizeof(float2));
@@ -114,14 +131,17 @@ void prepareBoidCUDADataStructures()
 	}
 
 	cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
-	cudaMemcpyAsync(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice, stream1);
+	for (size_t i = 0; i < numStreams; i++)
+	{
+		cudaMemcpyAsync(dev_temp, temp, sizeof(float2) * 4 * offset, cudaMemcpyHostToDevice, streams[i]);
+	}
 	printf("prepared positions and velocities in CUDA\n");
 }
 
 void prepareObstacles()
 {
-	cudaMallocHost((void**)&obstacleCenters, numberOfObstacles * sizeof(float2)); 
-	cudaMallocHost((void**)&obstacleRadii, numberOfObstacles * sizeof(float)); 
+	cudaMallocHost((void**)&obstacleCenters, numberOfObstacles * sizeof(float2));
+	cudaMallocHost((void**)&obstacleRadii, numberOfObstacles * sizeof(float));
 
 	for (int i = 0; i < numberOfObstacles; i++)
 	{
@@ -129,7 +149,7 @@ void prepareObstacles()
 		obstacleRadii[i] = obstacleRadius;
 	}
 	printf("prepared obstacles\n");
-	prepareObstaclesCUDADataStructures(); 
+	prepareObstaclesCUDADataStructures();
 }
 
 void prepareObstaclesCUDADataStructures()
@@ -164,7 +184,7 @@ void prepareCells()
 		y -= side;
 	}
 
-	cudaMallocHost((void**)&cellHead,sizeof(int)*numberOfCells * numberOfCells);
+	cudaMallocHost((void**)&cellHead, sizeof(int)*numberOfCells * numberOfCells);
 	cudaMallocHost((void**)&cellNext, sizeof(int)*numberOfBoids);
 
 	//-1 represents an invalid boid index for the cell, it means that the cell is empty	
@@ -179,12 +199,12 @@ void prepareCells()
 		cellNext[i] = -1;
 	}
 
-	cudaMallocHost((void**)&neighbours, sizeof(int*) * numberOfCells * numberOfCells); 
+	cudaMallocHost((void**)&neighbours, sizeof(int*) * numberOfCells * numberOfCells);
 	for (int i = 0; i < numberOfCells * numberOfCells; i++) {
 		int * neighbourCells = Cell::getAdjacentCells(i);
 		neighbours[i] = neighbourCells;
 	}
-	printf("prepared cells\n"); 
+	printf("prepared cells\n");
 	prepareCellsCUDADataStructures();
 }
 
@@ -201,8 +221,8 @@ void prepareCellsCUDADataStructures()
 
 
 	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
-	int* linearizedNeighbours; 
-	cudaMallocHost((void**)&linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int)); 
+	int* linearizedNeighbours;
+	cudaMallocHost((void**)&linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
 	int cont = 0;
 	for (int i = 0; i < numberOfCells*numberOfCells; i++)
 	{
@@ -214,8 +234,8 @@ void prepareCellsCUDADataStructures()
 	}
 	cudaMemcpyAsync(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice, stream1);
 
-	int* bxci; 
-	cudaMallocHost((void**)&bxci, numberOfBoids * sizeof(int)); 
+	int* bxci;
+	cudaMallocHost((void**)&bxci, numberOfBoids * sizeof(int));
 	for (int i = 0; i < numberOfBoids; i++)
 	{
 		bxci[i] = -1;
@@ -228,11 +248,18 @@ void prepareCellsCUDADataStructures()
 void prepareGraphicsToRenderBoids(GLuint *vbo)
 {
 	graphics.createGLStructures(vbo, &VAO);
-	graphics.saveBoidsRenderingData(vbo, boidVertices, numberOfBoids);
-	graphics.loadBoidsVertices(vbo);
-	graphics.loadBoidsColor(vbo);
+	printf(" graphics->createdGLstructures\n");
+
+	graphics.saveBoidsRenderingData(vbo, boidVertices, 15);
+	printf(" graphics->savedBoidsRenderingData\n");
+
 	graphics.loadBoidsPosition(vbo, &translationsVBO, positions, numberOfBoids);
+	printf(" graphics->loadedBoidsPosition\n");
+
 	graphics.allowInstancing();
+	printf(" graphics->allowedInstancing\n");
+
+	printf("prepared graphics to rendering\n");
 }
 
 void startOfFrame()
@@ -258,42 +285,66 @@ void display()
 	endOfFrame();
 }
 
-void callKernel()
+void cbpNormal()
 {
-
 	int threadsPerBlock = 32;
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
 	dim3 block(threadsPerBlock, 9);
 
-
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours);
-	cudaDeviceSynchronize();
+		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);
 	cudaCheckError();
+	cudaDeviceSynchronize();
 
 	computeFlocking << <grid, block >> >
 		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
-			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs);
-	cudaDeviceSynchronize();
+			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, 0);
 	cudaCheckError();
+	cudaDeviceSynchronize();
 
 	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs);
-	cudaDeviceSynchronize();
+		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, 0);
 	cudaCheckError();
+	cudaDeviceSynchronize();
+
+	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
 void calculateBoidsPositions()
 {
-	callKernel();
-	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
+	int threadsPerBlock = 32;
+
+	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
+	dim3 block(threadsPerBlock, 9);
+	dim3 lesserGrid(offset / threadsPerBlock + 1, 1);
+
+	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
+		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);
+
+	for (size_t i = 0; i < numStreams; i++)
+	{
+		computeFlocking << <lesserGrid, block, 0, streams[i] >> >
+			(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
+				dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, i);
+	}
+
+	for (size_t i = 0; i < numStreams; i++)
+	{ 
+		makeMovement << <lesserGrid, dim3(threadsPerBlock, 1), 0, streams[i] >> >
+			(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, i);
+	}
+
+	for (size_t i = 0; i < numStreams; i++)
+	{
+		cudaMemcpyAsync(&positions[offset*i], &dev_positions[offset*i],
+			offset * sizeof(float2), cudaMemcpyDeviceToHost, streams[i]);
+	}
 }
 
 void endApplication()
 {
 	//freeCUDADataStructures();
-
 	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
 	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
