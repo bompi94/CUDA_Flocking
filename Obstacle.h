@@ -12,7 +12,7 @@ public:
 
 const unsigned int numberOfObstacles = 3;
 float obstacleRadius = 0.05;
-float2 obstacleCenters[numberOfObstacles];
-float obstacleRadii[numberOfObstacles];
+float2* obstacleCenters;
+float* obstacleRadii;
 
 #endif

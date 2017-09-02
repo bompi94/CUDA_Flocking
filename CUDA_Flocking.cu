@@ -48,8 +48,8 @@ float2 *dev_positions, *dev_velocities;
 
 int main(int argc, char **argv)
 {
-	startApplication(argc, argv);
 	printf("quinto (stream) approccio boids -> %d\n", numberOfBoids);
+	startApplication(argc, argv);
 	//glutMainLoop();
 	endApplication();
 }
@@ -64,9 +64,8 @@ void startApplication(int argc, char **argv)
 	registerGlutCallbacks();
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
-	//prepareCells();
+	prepareCells();
 	//prepareGraphicsToRenderBoids(&vbo);
-	//prepareCUDADataStructures();
 
 	//prepare streams
 	streamResult = cudaStreamCreate(&stream1);
@@ -95,20 +94,61 @@ void preparePositionsAndVelocitiesArray()
 		velocities[i] = normalizeVector(velocities[i]);
 		positions[i] = make_float2(Helper::randomMinusOneOrOneFloat(), Helper::randomMinusOneOrOneFloat());
 	}
-
+	printf("prepared positions and velocities\n");
 	prepareBoidCUDADataStructures(); 
+}
+
+void prepareBoidCUDADataStructures()
+{
+	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
+	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
+
+	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
+	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
+
+	float2* temp;
+	cudaMallocHost((void**)&temp, 4 * numberOfBoids * sizeof(float2));
+	for (int i = 0; i < 4 * numberOfBoids; i++)
+	{
+		temp[i] = make_float2(0, 0);
+	}
+
+	cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
+	cudaMemcpyAsync(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice, stream1);
+	printf("prepared positions and velocities in CUDA\n");
+}
+
+void prepareObstacles()
+{
+	cudaMallocHost((void**)&obstacleCenters, numberOfObstacles * sizeof(float2)); 
+	cudaMallocHost((void**)&obstacleRadii, numberOfObstacles * sizeof(float)); 
+
+	for (int i = 0; i < numberOfObstacles; i++)
+	{
+		obstacleCenters[i] = make_float2(Helper::randomMinusOneOrOneFloat() / 2, Helper::randomMinusOneOrOneFloat() / 2);
+		obstacleRadii[i] = obstacleRadius;
+	}
+	printf("prepared obstacles\n");
+	prepareObstaclesCUDADataStructures(); 
+}
+
+void prepareObstaclesCUDADataStructures()
+{
+	cudaMalloc((void**)&dev_obstacleCenters, numberOfObstacles * sizeof(float2));
+	cudaMemcpyAsync(dev_obstacleCenters, obstacleCenters, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice, stream1);
+	cudaMalloc((void**)&dev_obstacleRadii, numberOfObstacles * sizeof(float));
+	cudaMemcpyAsync(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float), cudaMemcpyHostToDevice, stream1);
+	printf("prepared obstacles in CUDA\n");
 }
 
 void prepareCells()
 {
-	cells = (Cell*)malloc(sizeof(Cell) * numberOfCells * numberOfCells);
+	cudaMallocHost((void**)&cells, sizeof(Cell) * numberOfCells * numberOfCells);
 
 	float side = (float)2 / numberOfCells;
 	float x = -1;
 	float y = 1;
-
 	unsigned int id = 0;
-
 	for (int i = 0; i < numberOfCells; i++)
 	{
 		x = -1;
@@ -124,8 +164,8 @@ void prepareCells()
 		y -= side;
 	}
 
-	cellHead = (int*)malloc(sizeof(int)*numberOfCells * numberOfCells);
-	cellNext = (int*)malloc(sizeof(int) * numberOfBoids);
+	cudaMallocHost((void**)&cellHead,sizeof(int)*numberOfCells * numberOfCells);
+	cudaMallocHost((void**)&cellNext, sizeof(int)*numberOfBoids);
 
 	//-1 represents an invalid boid index for the cell, it means that the cell is empty	
 	for (int i = 0; i < numberOfCells * numberOfCells; i++)
@@ -139,20 +179,50 @@ void prepareCells()
 		cellNext[i] = -1;
 	}
 
-	neighbours = (int**)malloc(sizeof(int*) * numberOfCells * numberOfCells);
+	cudaMallocHost((void**)&neighbours, sizeof(int*) * numberOfCells * numberOfCells); 
 	for (int i = 0; i < numberOfCells * numberOfCells; i++) {
 		int * neighbourCells = Cell::getAdjacentCells(i);
 		neighbours[i] = neighbourCells;
 	}
+	printf("prepared cells\n"); 
+	prepareCellsCUDADataStructures();
 }
 
-void prepareObstacles()
+void prepareCellsCUDADataStructures()
 {
-	for (int i = 0; i < numberOfObstacles; i++)
+	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
+	cudaMemcpyAsync(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice, stream1);
+
+	cudaMalloc((void**)&dev_cellHead, numberOfCells * numberOfCells * sizeof(int));
+	cudaMemcpyAsync(dev_cellHead, cellHead, numberOfCells * numberOfCells * sizeof(int), cudaMemcpyHostToDevice, stream1);
+
+	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int));
+	cudaMemcpyAsync(dev_cellNext, cellNext, numberOfBoids * sizeof(int), cudaMemcpyHostToDevice, stream1);
+
+
+	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
+	int* linearizedNeighbours; 
+	cudaMallocHost((void**)&linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int)); 
+	int cont = 0;
+	for (int i = 0; i < numberOfCells*numberOfCells; i++)
 	{
-		obstacleCenters[i] = make_float2(Helper::randomMinusOneOrOneFloat() / 2, Helper::randomMinusOneOrOneFloat() / 2);
-		obstacleRadii[i] = obstacleRadius;
+		for (int j = 0; j < 8; j++)
+		{
+			linearizedNeighbours[cont] = neighbours[i][j];
+			cont++;
+		}
 	}
+	cudaMemcpyAsync(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice, stream1);
+
+	int* bxci; 
+	cudaMallocHost((void**)&bxci, numberOfBoids * sizeof(int)); 
+	for (int i = 0; i < numberOfBoids; i++)
+	{
+		bxci[i] = -1;
+	}
+	cudaMalloc((void**)&dev_boidXCellsIDs, sizeof(int)*numberOfBoids);
+	cudaMemcpyAsync(dev_boidXCellsIDs, bxci, sizeof(int)*numberOfBoids, cudaMemcpyHostToDevice, stream1);
+	printf("prepared cells in CUDA\n");
 }
 
 void prepareGraphicsToRenderBoids(GLuint *vbo)
@@ -163,80 +233,6 @@ void prepareGraphicsToRenderBoids(GLuint *vbo)
 	graphics.loadBoidsColor(vbo);
 	graphics.loadBoidsPosition(vbo, &translationsVBO, positions, numberOfBoids);
 	graphics.allowInstancing();
-}
-
-void prepareCUDADataStructures()
-{
-	printf("starting to prepare\n");
-	prepareBoidCUDADataStructures();
-	prepareObstaclesCUDADataStructures();
-	prepareCellsCUDADataStructures();
-}
-
-void prepareBoidCUDADataStructures()
-{
-	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
-	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
-
-	cudaMalloc((void**)&dev_velocities, numberOfBoids * sizeof(float2));
-	cudaMemcpyAsync(dev_positions, positions, numberOfBoids * sizeof(float2), cudaMemcpyHostToDevice, stream1);
-
-
-
-
-	//float2* temp = (float2*)malloc(4 * numberOfBoids * sizeof(float2)); 
-
-	//for (int i = 0; i < 4 * numberOfBoids; i++)
-	//{
-	//	temp[i] = make_float2(0, 0);
-	//}
-
-	//cudaMalloc((void**)&dev_temp, sizeof(float2) * 4 * numberOfBoids);
-	//cudaMemcpy(dev_temp, temp, sizeof(float2) * 4 * numberOfBoids, cudaMemcpyHostToDevice);
-
-	//free(temp);
-}
-
-void prepareObstaclesCUDADataStructures()
-{
-	cudaMalloc((void**)&dev_obstacleCenters, numberOfObstacles * sizeof(float2));
-	cudaMemcpy(dev_obstacleCenters, obstacleCenters, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice);
-	cudaMalloc((void**)&dev_obstacleRadii, numberOfObstacles * sizeof(float));
-	cudaMemcpy(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float), cudaMemcpyHostToDevice);
-}
-
-void prepareCellsCUDADataStructures()
-{
-	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
-	cudaMemcpy(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice);
-
-	cudaMalloc((void**)&dev_cellHead, numberOfCells * numberOfCells * sizeof(int));
-	cudaMemcpy(dev_cellHead, cellHead, numberOfCells * numberOfCells * sizeof(int), cudaMemcpyHostToDevice);
-
-	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int));
-	cudaMemcpy(dev_cellNext, cellNext, numberOfBoids * sizeof(int), cudaMemcpyHostToDevice);
-
-
-	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
-	int linearizedNeighbours[numberOfCells*numberOfCells * 8];
-	int cont = 0;
-	for (int i = 0; i < numberOfCells*numberOfCells; i++)
-	{
-		for (int j = 0; j < 8; j++)
-		{
-			linearizedNeighbours[cont] = neighbours[i][j];
-			cont++;
-		}
-	}
-	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice);
-
-	int* bxci = (int*)malloc(numberOfBoids* sizeof(int));
-	for (int i = 0; i < numberOfBoids; i++)
-	{
-		bxci[i] = -1; 
-	}
-	cudaMalloc((void**)&dev_boidXCellsIDs, sizeof(int)*numberOfBoids); 
-	cudaMemcpy(dev_boidXCellsIDs, bxci, sizeof(int)*numberOfBoids, cudaMemcpyHostToDevice);
 }
 
 void startOfFrame()
