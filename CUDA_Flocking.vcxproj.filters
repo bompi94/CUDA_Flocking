@@ -43,7 +43,7 @@
     <ClCompile Include="Graphics.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Cell.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

@@ -56,7 +56,7 @@ __device__ float2 alignment(int originalBoid, float2 *positions, float2 *velocit
 	int cont = 0;
 	int nextID = cellNext[originalBoid];
 
-	while (nextID > -1 && cont<=7) {
+	while (nextID > -1 && cont<=neighbourLimit) {
 		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius)
 		{
 			alignmentVector.x += velocities[nextID].x;
@@ -80,7 +80,7 @@ __device__ float2 cohesion(int originalBoid, int firstNeighborBoid, float2 *posi
 	int cont = 0;
 	int nextID = cellNext[firstNeighborBoid];
 
-	while (nextID > -1 && cont <= 7) {
+	while (nextID > -1 && cont <= neighbourLimit) {
 		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
 			cohesionVector.x += positions[nextID].x;
 			cohesionVector.y += positions[nextID].y;
@@ -105,7 +105,7 @@ __device__ float2 separation(int originalBoid, int neighbourBoid, float2 *positi
 	int cont = 0;
 	int nextID = cellNext[neighbourBoid];
 
-	while (nextID > -1 && cont <= 7) {
+	while (nextID > -1 && cont <= neighbourLimit) {
 		if (distanceBetweenPoints(positions[originalBoid], positions[nextID]) < boidradius) {
 			separationVector.x += positions[nextID].x - positions[originalBoid].x;
 			separationVector.y += positions[nextID].y - positions[originalBoid].y;

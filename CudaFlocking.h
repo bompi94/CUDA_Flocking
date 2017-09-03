@@ -25,6 +25,8 @@
 
 #include "Boid.h"
 #include "DeviceFunctions.h"
+#include "Graphics.h"
+#include "Helper.h"
 
 #ifndef _CELL_H
 #include "Cell.h"
@@ -68,8 +70,47 @@ float2 *pos;
 int movementTime = 1;
 int timecount = 0;
 
+
+
+//----important variables
 const int numStreams = 9;
 const int boidPerThread = 5;
+Graphics graphics;
+Cell* cells;
+Cell* dev_cells;
+
+//array that associates cells with the last boid to be registered in it
+//if i take cell 
+int* cellHead;
+int* dev_cellHead;
+
+//array that represents a chain of boids, every index is corresponding to the boid index and in every 
+//cell there is the index of the next boid
+int* cellNext;
+int* dev_cellNext;
+
+//array that associates a cell with its neighbours indices
+//every cell has 8 neighbours
+//to find the neighbours of cell x you have to index 
+//neighbour[x+i], i goes from 0 to 7
+int** neighbours;
+int* dev_neighbours;
+
+//remembers the cell every boid is in 
+int* dev_boidXCellsIDs;
+
+//stores the flocking vectors in between kernels
+float2* dev_temp;
+
+//boid i is defined by positions[i] and velocities[i]
+float2* positions;
+float2* velocities;
+float2 *dev_positions, *dev_velocities;
+
+cudaStream_t streams[numStreams];
+int offset = numberOfBoids / numStreams;
+
+
 
 void display();
 void keyboard(unsigned char key, int x, int y);
@@ -119,8 +160,8 @@ __global__ void makeMovement(float2* positions, float2* velocities,
 	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds, int  streamNumber)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / numStreams;
-
-	if (boidIndex < numberOfBoids) 
+	const float boidSpeed = 0.002f;
+	if (boidIndex < numberOfBoids)
 	{
 		int cellID = boidXCellsIds[boidIndex];
 		int base = boidIndex * 4;
@@ -128,7 +169,7 @@ __global__ void makeMovement(float2* positions, float2* velocities,
 		float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex],
 			temp[base + 0], temp[base + 1], temp[base + 2], temp[base + 3]);
 		boidVelocity = normalizeVector(boidVelocity);
-		boidVelocity = vectorMultiplication(boidVelocity, 0.003);
+		boidVelocity = vectorMultiplication(boidVelocity, boidSpeed);
 
 		velocities[boidIndex].x = boidVelocity.x;
 		velocities[boidIndex].y = boidVelocity.y;
@@ -197,20 +238,19 @@ __device__ int GetCellId(int myCellID, int* neighbours, Cell* cells, float2 pos,
 	}
 
 	//check if I'm still in my cell
-	if (cells[myCellID].IsPositionInCell(pos))
+	else if (cells[myCellID].IsPositionInCell(pos))
 		return cells[myCellID].id;
 
-
-	//changing cell, search the next in the neighbours of my cell
-	for (int i = 0; i < 8; i++)
-	{
-		int base = myCellID * 8;
-		int currentNeighbourIndex = neighbours[base + i];
-		Cell currentNeighbour = cells[currentNeighbourIndex];
-		if (currentNeighbour.IsPositionInCell(pos))
-			return currentNeighbour.id;
-	}
-	printf("oh no\n");
+	else
+		//changing cell, search the next in the neighbours of my cell
+		for (int i = 0; i < 8; i++)
+		{
+			int base = myCellID * 8;
+			int currentNeighbourIndex = neighbours[base + i];
+			Cell currentNeighbour = cells[currentNeighbourIndex];
+			if (currentNeighbour.IsPositionInCell(pos))
+				return currentNeighbour.id;
+		}
 	return -1;
 }
 

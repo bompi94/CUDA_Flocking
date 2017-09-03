@@ -1,44 +1,5 @@
 #include "CudaFlocking.h"
-#include "Graphics.h"
-#include "Helper.h"
 
-Graphics graphics;
-Cell* cells;
-Cell* dev_cells;
-
-//array that associates cells with the last boid to be registered in it
-//if i take cell 
-int* cellHead;
-int* dev_cellHead;
-
-//array that represents a chain of boids, every index is corresponding to the boid index and in every 
-//cell there is the index of the next boid
-int* cellNext;
-int* dev_cellNext;
-
-//array that associates a cell with its neighbours indices
-//every cell has 8 neighbours
-//to find the neighbours of cell x you have to index 
-//neighbour[x+i], i goes from 0 to 7
-int** neighbours;
-int* dev_neighbours;
-
-//remembers the cell every boid is in 
-int* dev_boidXCellsIDs;
-
-//stores the flocking vectors in between kernels
-float2* dev_temp;
-
-cudaStream_t stream1;
-cudaError_t streamResult;
-
-//boid i is defined by positions[i] and velocities[i]
-float2* positions;
-float2* velocities;
-float2 *dev_positions, *dev_velocities;
-
-cudaStream_t streams[numStreams];
-int offset = numberOfBoids / numStreams;
 
 //Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError() {                                          \
@@ -153,9 +114,9 @@ void prepareObstacles()
 void prepareObstaclesCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_obstacleCenters, numberOfObstacles * sizeof(float2));
-	cudaMemcpyAsync(dev_obstacleCenters, obstacleCenters, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_obstacleCenters, obstacleCenters, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice);
 	cudaMalloc((void**)&dev_obstacleRadii, numberOfObstacles * sizeof(float));
-	cudaMemcpyAsync(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float), cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_obstacleRadii, obstacleRadii, numberOfObstacles * sizeof(float), cudaMemcpyHostToDevice);
 	printf("prepared obstacles in CUDA\n");
 }
 
@@ -209,13 +170,13 @@ void prepareCells()
 void prepareCellsCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
-	cudaMemcpyAsync(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&dev_cellHead, numberOfCells * numberOfCells * sizeof(int));
-	cudaMemcpyAsync(dev_cellHead, cellHead, numberOfCells * numberOfCells * sizeof(int), cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_cellHead, cellHead, numberOfCells * numberOfCells * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&dev_cellNext, numberOfBoids * sizeof(int));
-	cudaMemcpyAsync(dev_cellNext, cellNext, numberOfBoids * sizeof(int), cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_cellNext, cellNext, numberOfBoids * sizeof(int), cudaMemcpyHostToDevice);
 
 
 	cudaMalloc((void**)&dev_neighbours, (numberOfCells * numberOfCells * 8) * sizeof(int));
@@ -230,7 +191,7 @@ void prepareCellsCUDADataStructures()
 			cont++;
 		}
 	}
-	cudaMemcpyAsync(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_neighbours, linearizedNeighbours, (numberOfCells * numberOfCells * 8) * sizeof(int), cudaMemcpyHostToDevice);
 
 	int* bxci;
 	cudaMallocHost((void**)&bxci, numberOfBoids * sizeof(int));
@@ -239,7 +200,7 @@ void prepareCellsCUDADataStructures()
 		bxci[i] = -1;
 	}
 	cudaMalloc((void**)&dev_boidXCellsIDs, sizeof(int)*numberOfBoids);
-	cudaMemcpyAsync(dev_boidXCellsIDs, bxci, sizeof(int)*numberOfBoids, cudaMemcpyHostToDevice, stream1);
+	cudaMemcpy(dev_boidXCellsIDs, bxci, sizeof(int)*numberOfBoids, cudaMemcpyHostToDevice);
 	printf("prepared cells in CUDA\n");
 }
 
@@ -281,29 +242,6 @@ void display()
 	calculateBoidsPositions();
 	graphics.drawBoids(numberOfBoids, &translationsVBO, positions);
 	endOfFrame();
-}
-
-void cbpNormal()
-{
-	int numberOfThreadsNeeded = numberOfBoids / boidPerThread;
-	int threadsPerBlock = 64;
-
-	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
-	dim3 computeGrid(numberOfThreadsNeeded / threadsPerBlock + 1, 1);
-	dim3 block(threadsPerBlock, 9);
-
-	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);
-
-	computeFlocking << < computeGrid , block >> >
-		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells,
-			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, 5);
-	cudaCheckError();
-
-	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, 0);
-
-	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
 void calculateBoidsPositions()
