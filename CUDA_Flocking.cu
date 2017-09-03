@@ -308,13 +308,12 @@ void cbpNormal()
 
 void calculateBoidsPositions()
 {
-	//cbpNormal();
-	int threadsPerBlock = 64;
+	int threadsPerBlock = 512;
 
 	int numberOfThreadsNeeded = numberOfBoids / boidPerThread;
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
-	dim3 computeGrid(numberOfThreadsNeeded / threadsPerBlock + 1, 1);
+	dim3 computeGrid((numberOfThreadsNeeded / threadsPerBlock + 1), 1);
 	dim3 lesserGrid(offset / threadsPerBlock + 1, 1);
 
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >

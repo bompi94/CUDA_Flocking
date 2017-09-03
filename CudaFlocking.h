@@ -145,32 +145,22 @@ __device__ void computeAllForBoid(int boidIndex, int boidY, float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
 	Cell* cells, int numberOfCells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs)
 {
-	int specialBoid = 8;
-	int cellID = boidXCellsIDs[boidIndex];
 
-	if (cellID != -1)
+	if (boidXCellsIDs[boidIndex] != -1)
 	{
-		int neighbourCellID = neighbours[(cellID * 8) + boidY % 8];
+		int neighbourCellID = neighbours[(boidXCellsIDs[boidIndex] * 8) + boidY % 8];
 
-		if (boidY == specialBoid)
+		if (boidY == 8)
 		{
-			neighbourCellID = cellID;
+			neighbourCellID = boidXCellsIDs[boidIndex];;
 		}
 
-		int neighbourBoidIndex = cellHead[neighbourCellID];
-
-		if (neighbourBoidIndex != -1)
+		if (cellHead[neighbourCellID] != -1)
 		{
-			float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-			float2 cohesionVector = cohesion(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-			float2 separationVector = separation(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-			float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
-
-			int base = boidIndex * 4;
-			temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
-			temp[base + 1] = normalizeVector(vectorSum(temp[base + 1], cohesionVector));
-			temp[base + 2] = normalizeVector(vectorSum(temp[base + 2], separationVector));
-			temp[base + 3] = normalizeVector(obstacleAvoidanceVector);
+			temp[boidIndex * 4 + 0] = normalizeVector(vectorSum(temp[boidIndex * 4 + 0], alignment(cellHead[neighbourCellID], positions, velocities, boidradius, cellNext)));
+			temp[boidIndex * 4 + 1] = normalizeVector(vectorSum(temp[boidIndex * 4 + 1], cohesion(boidIndex, cellHead[neighbourCellID], positions, velocities, boidradius, cellNext)));
+			temp[boidIndex * 4 + 2] = normalizeVector(vectorSum(temp[boidIndex * 4 + 2], separation(boidIndex, cellHead[neighbourCellID], positions, velocities, boidradius, cellNext)));
+			temp[boidIndex * 4 + 3] = normalizeVector(obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii));
 		}
 
 	}
