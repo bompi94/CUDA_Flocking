@@ -121,8 +121,6 @@ void prepareBoidCUDADataStructures()
 		cudaMemcpyAsync(&dev_velocities[i*offset], &velocities[i*offset], offset * sizeof(float2), cudaMemcpyHostToDevice, streams[i]);
 	}
 
-	//POSSIBILE PROBLEMA DI RESTO? 
-
 	float2* temp;
 	cudaMallocHost((void**)&temp, 4 * numberOfBoids * sizeof(float2));
 	for (int i = 0; i < 4 * numberOfBoids; i++)
@@ -287,36 +285,36 @@ void display()
 
 void cbpNormal()
 {
-	int threadsPerBlock = 32;
+	int numberOfThreadsNeeded = numberOfBoids / boidPerThread;
+	int threadsPerBlock = 64;
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
+	dim3 computeGrid(numberOfThreadsNeeded / threadsPerBlock + 1, 1);
 	dim3 block(threadsPerBlock, 9);
 
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
 		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);
-	cudaCheckError();
-	cudaDeviceSynchronize();
 
-	computeFlocking << <grid, block >> >
-		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
-			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, 0);
+	computeFlocking << < computeGrid , block >> >
+		(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells,
+			dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, 5);
 	cudaCheckError();
-	cudaDeviceSynchronize();
 
 	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
 		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, 0);
-	cudaCheckError();
-	cudaDeviceSynchronize();
 
 	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
 void calculateBoidsPositions()
 {
-	int threadsPerBlock = 32;
+	//cbpNormal();
+	int threadsPerBlock = 64;
+
+	int numberOfThreadsNeeded = numberOfBoids / boidPerThread;
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
-	dim3 block(threadsPerBlock, 9);
+	dim3 computeGrid(numberOfThreadsNeeded / threadsPerBlock + 1, 1);
 	dim3 lesserGrid(offset / threadsPerBlock + 1, 1);
 
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
@@ -324,22 +322,15 @@ void calculateBoidsPositions()
 
 	for (size_t i = 0; i < numStreams; i++)
 	{
-		computeFlocking << <lesserGrid, block, 0, streams[i] >> >
-			(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells, numberOfCells,
+		computeFlocking << <computeGrid, dim3(threadsPerBlock,1), 0, streams[i] >> >
+			(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells,
 				dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, i);
 	}
 
-	for (size_t i = 0; i < numStreams; i++)
-	{ 
-		makeMovement << <lesserGrid, dim3(threadsPerBlock, 1), 0, streams[i] >> >
-			(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, i);
-	}
+	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
+		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, 0);
 
-	for (size_t i = 0; i < numStreams; i++)
-	{
-		cudaMemcpyAsync(&positions[offset*i], &dev_positions[offset*i],
-			offset * sizeof(float2), cudaMemcpyDeviceToHost, streams[i]);
-	}
+	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
 }
 
 void endApplication()

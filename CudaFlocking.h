@@ -68,7 +68,8 @@ float2 *pos;
 int movementTime = 1;
 int timecount = 0;
 
-const int numStreams = 3;
+const int numStreams = 9;
+const int boidPerThread = 5;
 
 void display();
 void keyboard(unsigned char key, int x, int y);
@@ -88,8 +89,7 @@ void endApplication();
 void computeFPS();
 __global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
-	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int offset);
+	Cell* cells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int offset);
 float2 mouseToWorldCoordinates(int x, int y);
 void setFlockDestination(float2 destination);
 void sendFlockToMouseClick(int x, int y);
@@ -101,10 +101,10 @@ void prepareCellsCUDADataStructures();
 __device__ int GetCellId(int cellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells);
 
 
-__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, int* boidXCellsIDs, int* neighbours,int streamNumber)
+__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, int* boidXCellsIDs, int* neighbours, int streamNumber)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / numStreams;
-	if (boidIndex < numberOfBoids) { 
+	if (boidIndex < numberOfBoids) {
 
 		int cellID = GetCellId(boidXCellsIDs[boidIndex], neighbours, cells, positions[boidIndex], numberOfCells);
 
@@ -116,12 +116,12 @@ __global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell
 }
 
 __global__ void makeMovement(float2* positions, float2* velocities,
-	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds, int streamNumber)
+	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds, int  streamNumber)
 {
 	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / numStreams;
 
-
-	if (boidIndex < numberOfBoids) {
+	if (boidIndex < numberOfBoids) 
+	{
 		int cellID = boidXCellsIds[boidIndex];
 		int base = boidIndex * 4;
 
@@ -141,49 +141,56 @@ __global__ void makeMovement(float2* positions, float2* velocities,
 	}
 }
 
+__device__ void computeAllForBoid(int boidIndex, int boidY, float2 *positions,
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int numberOfCells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs)
+{
+	int specialBoid = 8;
+	int cellID = boidXCellsIDs[boidIndex];
+
+	if (cellID != -1)
+	{
+		int neighbourCellID = neighbours[(cellID * 8) + boidY % 8];
+
+		if (boidY == specialBoid)
+		{
+			neighbourCellID = cellID;
+		}
+
+		int neighbourBoidIndex = cellHead[neighbourCellID];
+
+		if (neighbourBoidIndex != -1)
+		{
+			float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+			float2 cohesionVector = cohesion(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+			float2 separationVector = separation(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
+			float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
+
+			int base = boidIndex * 4;
+			temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
+			temp[base + 1] = normalizeVector(vectorSum(temp[base + 1], cohesionVector));
+			temp[base + 2] = normalizeVector(vectorSum(temp[base + 2], separationVector));
+			temp[base + 3] = normalizeVector(obstacleAvoidanceVector);
+		}
+
+	}
+}
+
 __global__  void computeFlocking(float2 *positions,
 	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
-	Cell* cells, int numberOfCells,
-	int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int streamNumber)
+	Cell* cells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int streamNumber)
 {
-	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber * numberOfBoids/numStreams;
+	unsigned int boidIndex = (blockIdx.x*blockDim.x + threadIdx.x) * boidPerThread;
 
-	unsigned int boidY = threadIdx.y;
-	int specialBoid = 8;
-
-	if (boidIndex < numberOfBoids)
+	for (size_t i = 0; i < boidPerThread; i++)
 	{
-		int cellID = boidXCellsIDs[boidIndex];
-
-		if (cellID != -1)
+		int index = boidIndex + i;
+		if (index < numberOfBoids)
 		{
-			int neighbourCellID = neighbours[(cellID * 8) + boidY % 8];
-
-			if (boidY == specialBoid)
-			{
-				neighbourCellID = cellID;
-			}
-
-			int neighbourBoidIndex = cellHead[neighbourCellID];
-
-			if (neighbourBoidIndex != -1)
-			{
-
-				float2 alignmentVector = alignment(neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-				float2 cohesionVector = cohesion(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-				float2 separationVector = separation(boidIndex, neighbourBoidIndex, positions, velocities, boidradius, cellNext);
-
-				float2 obstacleAvoidanceVector = obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii);
-
-				int base = boidIndex * 4;
-				temp[base + 0] = normalizeVector(vectorSum(temp[base + 0], alignmentVector));
-				temp[base + 1] = normalizeVector(vectorSum(temp[base + 1], cohesionVector));
-				temp[base + 2] = normalizeVector(vectorSum(temp[base + 2], separationVector));
-				temp[base + 3] = normalizeVector(obstacleAvoidanceVector);
-			}
-
-		} //endif cell!=-1
-	} // endif boidIndex < numberOfBoids
+			computeAllForBoid(index, streamNumber, positions, velocities, boidradius, obstacleCenters, obstacleRadii,
+				cells, numberOfCells, cellHead, cellNext, neighbours, temp, boidXCellsIDs);
+		}
+	}
 }
 
 
@@ -213,7 +220,7 @@ __device__ int GetCellId(int myCellID, int* neighbours, Cell* cells, float2 pos,
 		if (currentNeighbour.IsPositionInCell(pos))
 			return currentNeighbour.id;
 	}
-	printf("oh no\n"); 
+	printf("oh no\n");
 	return -1;
 }
 
