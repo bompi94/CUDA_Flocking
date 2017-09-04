@@ -23,14 +23,14 @@ class Graphics
 public:
 	bool initialize(int *argc, char **argv);
 	void drawCircle(float2 center, float r, int num_segments);
-	void createGLStructures(GLuint *vbo);
-	void saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int numberOfBoids);
-	void loadBoidsVertices(GLuint * vbo);
-	void loadBoidsColor(GLuint * vbo);
-	void loadBoidsPosition(GLuint * vbo, GLuint * translationsVBO, float2 * positions, int numberOfBoids);
+	void createGLStructures();
+	void saveBoidsRenderingData( float* boidVertices, int numberOfBoids);
+	void loadBoidsVertices();
+	void loadBoidsColor();
+	void loadBoidsPosition(float2 * positions, int numberOfBoids);
 	void allowInstancing();
 	void drawObstacles(int numberOfObstacles, float2 * obstacleCenters, float * obstacleRadii);
-	void drawBoids(int numberOfBoids, GLuint * translationsVBO, float2 * positions);
+	void drawBoids(int numberOfBoids, float2 * positions);
 	void computeFPS();
 	void startOfFrame();
 	void endOfFrame();
@@ -45,8 +45,8 @@ private:
 	float avgFPS;
 	StopWatchInterface *timer;
 	unsigned int VAO;
-
-
+	GLuint vbo;
+	GLuint translationsVBO;
 };
 
 #endif

@@ -56,38 +56,37 @@ void Graphics::drawCircle(float2 center, float r, int num_segments)
 	glEnd();
 }
 
-void Graphics::createGLStructures(GLuint *vbo)
+void Graphics::createGLStructures()
 {
-	assert(vbo);
 	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, vbo);
+	glGenBuffers(1, &vbo);
 	glBindVertexArray(VAO);
 }
 
-void Graphics::saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int numberOfBoids)
+void Graphics::saveBoidsRenderingData(float* boidVertices, int numberOfBoids)
 {
-	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, numberOfBoids * sizeof(float), &boidVertices[0], GL_DYNAMIC_DRAW);
-	loadBoidsVertices(vbo);
-	loadBoidsColor(vbo);
+	loadBoidsVertices();
+	loadBoidsColor();
 }
 
-void Graphics::loadBoidsVertices(GLuint * vbo)
+void Graphics::loadBoidsVertices()
 {
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 }
 
-void Graphics::loadBoidsColor(GLuint * vbo)
+void Graphics::loadBoidsColor()
 {
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 }
 
-void Graphics::loadBoidsPosition(GLuint * vbo, GLuint* translationsVBO, float2 * positions, int numberOfBoids)
+void Graphics::loadBoidsPosition(float2 * positions, int numberOfBoids)
 {
-	glGenBuffers(1, translationsVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, *translationsVBO);
+	glGenBuffers(1, &translationsVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	glEnableVertexAttribArray(2);
@@ -108,9 +107,9 @@ void Graphics::drawObstacles(int numberOfObstacles, float2 * obstacleCenters, fl
 	}
 }
 
-void Graphics::drawBoids(int numberOfBoids, GLuint * translationsVBO, float2 * positions)
+void Graphics::drawBoids(int numberOfBoids, float2 * positions)
 {
-	glBindBuffer(GL_ARRAY_BUFFER, *translationsVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, translationsVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float2) * numberOfBoids, &positions[0], GL_DYNAMIC_DRAW);
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 }

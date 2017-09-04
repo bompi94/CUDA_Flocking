@@ -1,5 +1,6 @@
 #include "CudaFlocking.h"
-
+#include "DeviceFunctions.h"
+#include "Helper.h"
 
 //Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError() {                                          \
@@ -10,63 +11,208 @@
  }                                                                 \
 }
 
-int main(int argc, char **argv)
+__global__  void computeFlocking(float2 *positions,
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int streamNumber); 
+__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, 
+	int* boidXCellsIDs, int* neighbours, int streamNumber);
+__global__ void makeMovement(float2* positions, float2* velocities,
+	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds, int  streamNumber);
+__device__ void computeAllForBoid(int boidIndex, int boidY, float2 *positions,
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int numberOfCells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs);
+__device__ int GetCellId(int myCellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells); 
+__device__ void screenOverflow(float2 *positions, int boidIndex); 
+
+
+CUDAFlocking::CUDAFlocking(){}
+
+void CUDAFlocking::init()
 {
-	printf("quinto (stream) approccio boids -> %d\n", numberOfBoids);
-	startApplication(argc, argv);
-	glutMainLoop();
-	endApplication();
-}
-
-void startApplication(int argc, char **argv)
-{
-	pArgc = &argc;
-	pArgv = argv;
-	printf("%s starting...\n", graphics.windowTitle);
-	graphics.initialize(&argc, argv);
-	registerGlutCallbacks();
-
-	//prepare streams
-
 	for (size_t i = 0; i < numStreams; i++)
 	{
 		cudaStreamCreate(&streams[i]);
 	}
-
 	preparePositionsAndVelocitiesArray();
 	prepareObstacles();
 	prepareCells();
-	prepareGraphicsToRenderBoids(&vbo);
 }
 
-void timerEvent(int value)
+void CUDAFlocking::calculateBoidsPositions()
 {
-	if (glutGetWindow())
+	int threadsPerBlock = 512;
+
+	int numberOfThreadsNeeded = numberOfBoids / boidPerThread;
+
+	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
+	dim3 computeGrid((numberOfThreadsNeeded / threadsPerBlock + 1), 1);
+	dim3 lesserGrid(offset / threadsPerBlock + 1, 1);
+
+	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
+		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);
+
+	for (size_t i = 0; i < numStreams; i++)
 	{
-		glutPostRedisplay();
-		glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
+		computeFlocking << <computeGrid, dim3(threadsPerBlock, 1), 0, streams[i] >> >
+			(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells,
+				dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, i);
+	}
+
+	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
+		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, 0);
+
+	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
+}
+
+float2* CUDAFlocking::getPositions()
+{
+	return positions;
+}
+
+float2* CUDAFlocking::getObstacleCenters()
+{
+	return obstacleCenters; 
+}
+
+float* CUDAFlocking::getObstacleRadii()
+{
+	return obstacleRadii; 
+}
+
+__global__  void computeFlocking(float2 *positions,
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs, int streamNumber)
+{
+	unsigned int boidIndex = (blockIdx.x*blockDim.x + threadIdx.x) * CUDAFlocking::boidPerThread;
+
+	for (size_t i = 0; i < CUDAFlocking::boidPerThread; i++)
+	{
+		int index = boidIndex + i;
+		if (index < numberOfBoids)
+		{
+			computeAllForBoid(index, streamNumber, positions, velocities, boidradius, obstacleCenters, obstacleRadii,
+				cells, numberOfCells, cellHead, cellNext, neighbours, temp, boidXCellsIDs);
+		}
+	}
+}
+
+__global__ void setupCells(float2 *positions, int* cellHead, int* cellNext, Cell* cells, int numberOfCells, int* boidXCellsIDs, int* neighbours, int streamNumber)
+{
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / CUDAFlocking::numStreams;
+	if (boidIndex < numberOfBoids) {
+
+		int cellID = GetCellId(boidXCellsIDs[boidIndex], neighbours, cells, positions[boidIndex], numberOfCells);
+
+		int lastStartElement = cellHead[cellID];
+		cellHead[cellID] = boidIndex;
+		cellNext[boidIndex] = lastStartElement;
+		boidXCellsIDs[boidIndex] = cellID;
 	}
 }
 
 
-void cleanup()
+__global__ void makeMovement(float2* positions, float2* velocities,
+	int*  cellHead, int* cellNext, Cell* cells, int numberOfCells, float2* temp, int* boidXCellsIds, int  streamNumber)
 {
+	unsigned int boidIndex = blockIdx.x*blockDim.x + threadIdx.x + streamNumber*numberOfBoids / CUDAFlocking::numStreams;
+	const float boidSpeed = 0.002f;
+	if (boidIndex < numberOfBoids)
+	{
+		int cellID = boidXCellsIds[boidIndex];
+		int base = boidIndex * 4;
 
+		float2 boidVelocity = calculateBoidVelocity(velocities[boidIndex],
+			temp[base + 0], temp[base + 1], temp[base + 2], temp[base + 3]);
+		boidVelocity = normalizeVector(boidVelocity);
+		boidVelocity = vectorMultiplication(boidVelocity, boidSpeed);
+
+		velocities[boidIndex].x = boidVelocity.x;
+		velocities[boidIndex].y = boidVelocity.y;
+
+		positions[boidIndex] = vectorSum(positions[boidIndex], velocities[boidIndex]);
+		screenOverflow(positions, boidIndex);
+
+		cellNext[boidIndex] = -1;
+		cellHead[cellID] = -1;
+	}
 }
 
-void registerGlutCallbacks()
+__device__ void computeAllForBoid(int boidIndex, int boidY, float2 *positions,
+	float2 *velocities, float boidradius, float2 *obstacleCenters, float *obstacleRadii,
+	Cell* cells, int numberOfCells, int* cellHead, int* cellNext, int* neighbours, float2* temp, int* boidXCellsIDs)
 {
-	glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
-	glutDisplayFunc(display);
-	glutKeyboardFunc(keyboard);
-	glutMouseFunc(mouse);
-	glutCloseFunc(cleanup);
-	printf("registered glut callbacks\n");
+
+	if (boidXCellsIDs[boidIndex] != -1)
+	{
+		int neighbourCellID = neighbours[(boidXCellsIDs[boidIndex] * 8) + boidY % 8];
+
+		if (boidY == 8)
+		{
+			neighbourCellID = boidXCellsIDs[boidIndex];;
+		}
+
+		if (cellHead[neighbourCellID] != -1)
+		{
+			temp[boidIndex * 4 + 0] = normalizeVector(vectorSum(temp[boidIndex * 4 + 0], alignment(cellHead[neighbourCellID], positions, velocities, boidradius, cellNext)));
+			temp[boidIndex * 4 + 1] = normalizeVector(vectorSum(temp[boidIndex * 4 + 1], cohesion(boidIndex, cellHead[neighbourCellID], positions, velocities, boidradius, cellNext)));
+			temp[boidIndex * 4 + 2] = normalizeVector(vectorSum(temp[boidIndex * 4 + 2], separation(boidIndex, cellHead[neighbourCellID], positions, velocities, boidradius, cellNext)));
+			temp[boidIndex * 4 + 3] = normalizeVector(obstacleAvoidance(positions[boidIndex], velocities[boidIndex], obstacleCenters, obstacleRadii));
+		}
+
+	}
 }
 
+__device__ int GetCellId(int myCellID, int* neighbours, Cell* cells, float2 pos, int numberOfCells)
+{
+	//don't have a cell yet, so i search it through all the cells
+	if (myCellID == -1)
+	{
+		for (int i = 0; i < numberOfCells*numberOfCells; i++)
+		{
+			if (cells[i].IsPositionInCell(pos))
+				return cells[i].id;
+		}
+	}
 
+	//check if I'm still in my cell
+	else if (cells[myCellID].IsPositionInCell(pos))
+		return cells[myCellID].id;
 
-void preparePositionsAndVelocitiesArray()
+	else
+		//changing cell, search the next in the neighbours of my cell
+		for (int i = 0; i < 8; i++)
+		{
+			int base = myCellID * 8;
+			int currentNeighbourIndex = neighbours[base + i];
+			Cell currentNeighbour = cells[currentNeighbourIndex];
+			if (currentNeighbour.IsPositionInCell(pos))
+				return currentNeighbour.id;
+		}
+	return -1;
+}
+
+__device__ void screenOverflow(float2 *positions, int boidIndex)
+{
+	float limit = 1;
+	if (positions[boidIndex].x >= limit || positions[boidIndex].x <= -limit)
+	{
+		if (positions[boidIndex].x > 0)
+			positions[boidIndex].x = limit - 0.001;
+		if (positions[boidIndex].x < 0)
+			positions[boidIndex].x = -limit + 0.001;
+		positions[boidIndex].x *= -1;
+	}
+	if (positions[boidIndex].y >= limit || positions[boidIndex].y <= -limit)
+	{
+		if (positions[boidIndex].y > 0)
+			positions[boidIndex].y = limit - 0.001;
+		if (positions[boidIndex].y < 0)
+			positions[boidIndex].y = -limit + 0.001;
+		positions[boidIndex].y *= -1;
+	}
+}
+
+void CUDAFlocking::preparePositionsAndVelocitiesArray()
 {
 	cudaMallocHost((void**)&positions, numberOfBoids * sizeof(float2));
 	cudaMallocHost((void**)&velocities, numberOfBoids * sizeof(float2));
@@ -83,7 +229,7 @@ void preparePositionsAndVelocitiesArray()
 	prepareBoidCUDADataStructures();
 }
 
-void prepareBoidCUDADataStructures()
+void CUDAFlocking::prepareBoidCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_positions, numberOfBoids * sizeof(float2));
 	for (size_t i = 0; i < numStreams; i++)
@@ -113,7 +259,7 @@ void prepareBoidCUDADataStructures()
 	printf("prepared positions and velocities in CUDA\n");
 }
 
-void prepareObstacles()
+void CUDAFlocking::prepareObstacles()
 {
 	cudaMallocHost((void**)&obstacleCenters, numberOfObstacles * sizeof(float2));
 	cudaMallocHost((void**)&obstacleRadii, numberOfObstacles * sizeof(float));
@@ -127,7 +273,7 @@ void prepareObstacles()
 	prepareObstaclesCUDADataStructures();
 }
 
-void prepareObstaclesCUDADataStructures()
+void CUDAFlocking::prepareObstaclesCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_obstacleCenters, numberOfObstacles * sizeof(float2));
 	cudaMemcpy(dev_obstacleCenters, obstacleCenters, numberOfObstacles * sizeof(float2), cudaMemcpyHostToDevice);
@@ -136,7 +282,7 @@ void prepareObstaclesCUDADataStructures()
 	printf("prepared obstacles in CUDA\n");
 }
 
-void prepareCells()
+void CUDAFlocking::prepareCells()
 {
 	cudaMallocHost((void**)&cells, sizeof(Cell) * numberOfCells * numberOfCells);
 
@@ -183,7 +329,7 @@ void prepareCells()
 	prepareCellsCUDADataStructures();
 }
 
-void prepareCellsCUDADataStructures()
+void CUDAFlocking::prepareCellsCUDADataStructures()
 {
 	cudaMalloc((void**)&dev_cells, numberOfCells * numberOfCells * sizeof(Cell));
 	cudaMemcpy(dev_cells, cells, numberOfCells * numberOfCells * sizeof(Cell), cudaMemcpyHostToDevice);
@@ -220,66 +366,8 @@ void prepareCellsCUDADataStructures()
 	printf("prepared cells in CUDA\n");
 }
 
-void prepareGraphicsToRenderBoids(GLuint *vbo)
-{
-	graphics.createGLStructures(vbo);
-	printf(" graphics->createdGLstructures\n");
 
-	graphics.saveBoidsRenderingData(vbo, boidVertices, 15);
-	printf(" graphics->savedBoidsRenderingData\n");
-
-	graphics.loadBoidsPosition(vbo, &translationsVBO, positions, numberOfBoids);
-	printf(" graphics->loadedBoidsPosition\n");
-
-	graphics.allowInstancing();
-	printf(" graphics->allowedInstancing\n");
-
-	printf("prepared graphics to rendering\n");
-}
-
-void display()
-{
-	graphics.startOfFrame();
-	graphics.drawObstacles(numberOfObstacles, obstacleCenters, obstacleRadii);
-	calculateBoidsPositions();
-	graphics.drawBoids(numberOfBoids, &translationsVBO, positions);
-	graphics.endOfFrame();
-}
-
-void calculateBoidsPositions()
-{
-	int threadsPerBlock = 512;
-
-	int numberOfThreadsNeeded = numberOfBoids / boidPerThread;
-
-	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
-	dim3 computeGrid((numberOfThreadsNeeded / threadsPerBlock + 1), 1);
-	dim3 lesserGrid(offset / threadsPerBlock + 1, 1);
-
-	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);
-
-	for (size_t i = 0; i < numStreams; i++)
-	{
-		computeFlocking << <computeGrid, dim3(threadsPerBlock,1), 0, streams[i] >> >
-			(dev_positions, dev_velocities, boidRadius, dev_obstacleCenters, dev_obstacleRadii, dev_cells,
-				dev_cellHead, dev_cellNext, dev_neighbours, dev_temp, dev_boidXCellsIDs, i);
-	}
-
-	makeMovement << <grid, dim3(threadsPerBlock, 1) >> >
-		(dev_positions, dev_velocities, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_temp, dev_boidXCellsIDs, 0);
-
-	cudaMemcpy(positions, dev_positions, numberOfBoids * sizeof(float2), cudaMemcpyDeviceToHost);
-}
-
-void endApplication()
-{
-	//freeCUDADataStructures();
-	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
-	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
-}
-
-void freeCUDADataStructures()
+void CUDAFlocking::freeCUDADataStructures()
 {
 	cudaFree(dev_positions);
 	cudaFree(dev_velocities);
@@ -292,57 +380,7 @@ void freeCUDADataStructures()
 	cudaFree(dev_neighbours);
 }
 
-void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
-{
-	glBindBuffer(1, *vbo);
-	glDeleteBuffers(1, vbo);
-
-	*vbo = 0;
-}
-
-void keyboard(unsigned char key, int /*x*/, int /*y*/)
-{
-	switch (key)
-	{
-	case (27):
-		glutDestroyWindow(glutGetWindow());
-		return;
-	}
-}
-
-void mouse(int button, int state, int x, int y)
-{
-	if (state == GLUT_DOWN)
-	{
-		mouse_buttons |= 1 << button;
-		sendFlockToMouseClick(x, y);
-	}
-	else if (state == GLUT_UP)
-	{
-		mouse_buttons = 0;
-	}
-
-	mouse_old_x = x;
-	mouse_old_y = y;
-}
-
-
-void sendFlockToMouseClick(int x, int y)
-{
-	float2 destination = mouseToWorldCoordinates(x, y);
-	setFlockDestination(destination);
-}
-
-float2 mouseToWorldCoordinates(int x, int y)
-{
-	float fX = (float)x / window_width;
-	float fY = (float)y / window_width;
-	fX = fX * 2 - 1;
-	fY = -fY * 2 + 1;
-	return make_float2(fX, fY);
-}
-
-void setFlockDestination(float2 destination)
+void CUDAFlocking::setFlockDestination(float2 destination)
 {
 	for (int i = 0; i < numberOfBoids; i++)
 	{

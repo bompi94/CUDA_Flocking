@@ -11,8 +11,7 @@ public:
 };
 
 const unsigned int numberOfObstacles = 3;
-float obstacleRadius = 0.05;
-float2* obstacleCenters;
-float* obstacleRadii;
+const float obstacleRadius = 0.05;
+
 
 #endif
