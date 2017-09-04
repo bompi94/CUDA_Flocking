@@ -12,7 +12,7 @@
 
 #define MAX_EPSILON_ERROR 10.0f
 #define THRESHOLD          0.30f
-#define REFRESH_DELAY     10 //ms
+#define REFRESH_DELAY     10//ms
 
 const unsigned int window_width = 512;
 const unsigned int window_height = 512;

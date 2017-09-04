@@ -1,29 +1,4 @@
-#pragma once
-#ifndef DEVICEFUNCTIONS_H
-#define DEVICEFUNCTIONS_H
-
-#include "Boid.h"
-#include "Obstacle.h"
-#include <vector_functions.h>
-#include <math.h>
-
-float* dev_obstacleRadii;
-float2* dev_obstacleCenters;
-
-__device__ Obstacle findMostThreateningObstacle(float2 position, float2 ahead, float2 ahead2, float2* obstacleCenters, float* obstacleRadii);
-__device__ bool lineIntersectsCircle(float2 position, float2 ahead, float2 ahead2, float2 obstacleCenter, float obstacleRadius);
-__device__ float distanceBetweenPoints(float2 point1, float2 point2);
-__device__ float2 vectorMultiplication(float2 vector, float scalar);
-__device__ float2 vectorDivision(float2 vector, float scalar);
-__device__ __host__ float2 normalizeVector(float2 vector);
-__device__ float2 alignment(int originalBoid, float2 *positions, float2 *velocities, float boidradius,
-	int* cellNext);
-__device__ float2 cohesion(int originalBoid, int firstNeighborBoid, float2 *positions, float2 *velocities, float boidradius, int* cellNext);
-__device__ float2 separation(int originalBoid, int neighbourBoid, float2 *positions, float2 *velocities, float boidradius, int* cellNext);
-__device__ __host__ float2 vectorSum(float2 vector1, float2 vector2); 
-__device__ float2 obstacleAvoidance(float2 position, float2 velocity, float2 * obstacleCenters, float* obstacleRadii); 
-__device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignmentVector, float2 cohesionVector, float2 separationVector, float2 obstacleAvoidanceVector);
-
+#include "DeviceFunctions.h"
 
 __device__ float distanceBetweenPoints(float2 point1, float2 point2)
 {
@@ -194,5 +169,3 @@ __device__ float2 calculateBoidVelocity(float2 velocityOfTheBoid, float2 alignme
 	velocityOfTheBoid.y += obstacleAvoidanceVector.y * obstacleAvoidanceWeight;
 	return velocityOfTheBoid;
 }
-
-#endif // !DEVICEFUNCTIONS_H

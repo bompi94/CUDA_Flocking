@@ -2,7 +2,6 @@
 
 #ifndef BOID_H
 #define BOID_H
-#include <vector_functions.h>
 
 const float boidRadius = .05;
 const unsigned int numberOfBoids = 20000;

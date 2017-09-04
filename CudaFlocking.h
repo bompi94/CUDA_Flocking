@@ -40,6 +40,7 @@ public:
 	float2* getPositions();
 	float2* getObstacleCenters(); 
 	float* getObstacleRadii(); 
+	void freeCUDADataStructures();
 
 private:
 	//boid i is defined by positions[i] and velocities[i]
@@ -79,6 +80,6 @@ private:
 	void prepareBoidCUDADataStructures();
 	void prepareObstaclesCUDADataStructures();
 	void prepareCellsCUDADataStructures();
-	void freeCUDADataStructures();
+
 };
 #endif //CUDAFLOCKING_H

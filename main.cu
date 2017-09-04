@@ -4,13 +4,8 @@
 
 Graphics graphics;
 CUDAFlocking simulation; 
-int g_Index = 0;
-unsigned int g_TotalErrors = 0;
-bool g_bQAReadback = false;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
-float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -3.0;
 int *pArgc = NULL;
 char **pArgv = NULL;
 
@@ -27,10 +22,10 @@ float2 mouseToWorldCoordinates(int x, int y);
 
 int main(int argc, char **argv)
 {
-	printf("quinto (stream) approccio boids -> %d\n", numberOfBoids);
+	printf("quinto (stream) approccio  \n boids %d  grid %dx%d neighbour limit %d \n", numberOfBoids, numberOfCells, numberOfCells, neighbourLimit);
 	startApplication(argc, argv);
+	printf("running...\n"); 
 	glutMainLoop();
-	endApplication();
 }
 
 void timerEvent(int value)
@@ -45,7 +40,9 @@ void timerEvent(int value)
 
 void cleanup()
 {
-
+	printf("clean up\n"); 
+	simulation.freeCUDADataStructures(); 
+	endApplication(); 
 }
 
 void registerGlutCallbacks()
@@ -81,9 +78,8 @@ void startApplication(int argc, char **argv)
 
 void endApplication()
 {
-	//freeCUDADataStructures();
-	printf("%s completed, returned %s\n", graphics.windowTitle, (g_TotalErrors == 0) ? "OK" : "ERROR!");
-	exit(g_TotalErrors == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+	printf("%s completed\n", graphics.windowTitle);
+	exit(0); 
 }
 
 void keyboard(unsigned char key, int /*x*/, int /*y*/)

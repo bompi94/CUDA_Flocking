@@ -1,7 +1,6 @@
 #pragma once
 #ifndef OBSTACLE_H
 #define OBSTACLE_H
-#include <vector_functions.h>
 class Obstacle
 {
 public:
