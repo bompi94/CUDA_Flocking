@@ -9,6 +9,7 @@ bool Graphics::initialize(int *argc, char **argv)
 	avgFPS = 0.0f;
 
 	sdkCreateTimer(&timer);
+	sdkCreateTimer(&secondsTimer); 
 
 	glutInit(argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
@@ -114,26 +115,12 @@ void Graphics::drawBoids(int numberOfBoids, float2 * positions)
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 }
 
-void Graphics::computeFPS()
-{
-	frameCount++;
-	fpsCount++;
-	if (fpsCount == fpsLimit)
-	{
-		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-		fpsCount = 0;
-		fpsLimit = (int)MAX(avgFPS, 1.f);
 
-		sdkResetTimer(&timer);
-	}
-	char fps[256];
-	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
-	glutSetWindowTitle(fps);
-}
 
 void Graphics::startOfFrame()
 {
 	sdkStartTimer(&timer);
+	sdkStartTimer(&secondsTimer);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(VAO);
 }
@@ -143,5 +130,29 @@ void Graphics::endOfFrame()
 	glutSwapBuffers();
 	sdkStopTimer(&timer);
 	computeFPS();
+}
+
+void Graphics::computeFPS()
+{
+	frameCount++;
+	fpsCount++;
+	avgmsperframe += sdkGetTimerValue(&secondsTimer);
+	if (fpsCount == fpsLimit)
+	{
+		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+		fpsCount = 0;
+		fpsLimit = (int)MAX(avgFPS, 1.f);
+
+		sdkResetTimer(&timer);
+	}
+	sdkResetTimer(&secondsTimer);
+	char fps[256];
+	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
+	glutSetWindowTitle(fps);
+}
+
+float Graphics::getAvgTimePerFrame()
+{
+	return avgmsperframe/frameCount;
 }
 

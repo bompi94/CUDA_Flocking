@@ -46,7 +46,6 @@ void CUDAFlocking::calculateBoidsPositions()
 
 	dim3 grid(numberOfBoids / threadsPerBlock + 1, 1);
 	dim3 computeGrid((numberOfThreadsNeeded / threadsPerBlock + 1), 1);
-	dim3 lesserGrid(offset / threadsPerBlock + 1, 1);
 
 	setupCells << <grid, dim3(threadsPerBlock, 1) >> >
 		(dev_positions, dev_cellHead, dev_cellNext, dev_cells, numberOfCells, dev_boidXCellsIDs, dev_neighbours, 0);

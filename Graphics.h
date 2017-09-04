@@ -34,6 +34,7 @@ public:
 	void computeFPS();
 	void startOfFrame();
 	void endOfFrame();
+	float getAvgTimePerFrame(); 
 
 	const char *windowTitle = "CUDA_Flocking";
 
@@ -44,9 +45,11 @@ private:
 	unsigned int frameCount;
 	float avgFPS;
 	StopWatchInterface *timer;
+	StopWatchInterface *secondsTimer;
 	unsigned int VAO;
 	GLuint vbo;
 	GLuint translationsVBO;
+	float avgmsperframe;
 };
 
 #endif

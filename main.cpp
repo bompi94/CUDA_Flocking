@@ -4,7 +4,6 @@
 
 Graphics graphics;
 CUDAFlocking simulation; 
-int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 int *pArgc = NULL;
 char **pArgv = NULL;
@@ -22,7 +21,7 @@ float2 mouseToWorldCoordinates(int x, int y);
 
 int main(int argc, char **argv)
 {
-	printf("quinto (stream) approccio  \n boids %d  grid %dx%d neighbour limit %d \n", numberOfBoids, numberOfCells, numberOfCells, neighbourLimit);
+	printf("---CUDA FLOCKING--- \nboids %d  grid %dx%d neighbour limit %d \n", numberOfBoids, numberOfCells, numberOfCells, neighbourLimit);
 	startApplication(argc, argv);
 	printf("running...\n"); 
 	glutMainLoop();
@@ -78,7 +77,7 @@ void startApplication(int argc, char **argv)
 
 void endApplication()
 {
-	printf("%s completed\n", graphics.windowTitle);
+	printf("%s completed\n average time per frame -> %f \n\n", graphics.windowTitle, graphics.getAvgTimePerFrame());
 	exit(0); 
 }
 
@@ -104,8 +103,6 @@ void mouse(int button, int state, int x, int y)
 		mouse_buttons = 0;
 	}
 
-	mouse_old_x = x;
-	mouse_old_y = y;
 }
 
 void prepareGraphicsToRenderBoids()

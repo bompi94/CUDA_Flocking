@@ -25,13 +25,11 @@
 #include "Boid.h"
 #include "Cell.h"
 
-
-
 class CUDAFlocking
 {
 public:
 	static const int numStreams = 9;
-	static const int boidPerThread = 5;
+	static const int boidPerThread = 1;
 
 	CUDAFlocking(); 
 	void init(); 
