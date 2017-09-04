@@ -2,6 +2,14 @@
 
 bool Graphics::initialize(int *argc, char **argv)
 {
+
+	fpsCount = 0;        // FPS count for averaging
+	fpsLimit = 1;        // FPS limit for sampling
+	frameCount = 0;
+	avgFPS = 0.0f;
+
+	sdkCreateTimer(&timer);
+
 	glutInit(argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(window_width, window_height);
@@ -48,12 +56,12 @@ void Graphics::drawCircle(float2 center, float r, int num_segments)
 	glEnd();
 }
 
-void Graphics::createGLStructures(GLuint *vbo, GLuint *VAO)
+void Graphics::createGLStructures(GLuint *vbo)
 {
 	assert(vbo);
-	glGenVertexArrays(1, VAO);
+	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, vbo);
-	glBindVertexArray(*VAO);
+	glBindVertexArray(VAO);
 }
 
 void Graphics::saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int numberOfBoids)
@@ -107,4 +115,34 @@ void Graphics::drawBoids(int numberOfBoids, GLuint * translationsVBO, float2 * p
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 3, numberOfBoids);
 }
 
+void Graphics::computeFPS()
+{
+	frameCount++;
+	fpsCount++;
+	if (fpsCount == fpsLimit)
+	{
+		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+		fpsCount = 0;
+		fpsLimit = (int)MAX(avgFPS, 1.f);
+
+		sdkResetTimer(&timer);
+	}
+	char fps[256];
+	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
+	glutSetWindowTitle(fps);
+}
+
+void Graphics::startOfFrame()
+{
+	sdkStartTimer(&timer);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindVertexArray(VAO);
+}
+
+void Graphics::endOfFrame()
+{
+	glutSwapBuffers();
+	sdkStopTimer(&timer);
+	computeFPS();
+}
 

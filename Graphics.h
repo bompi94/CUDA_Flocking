@@ -5,28 +5,48 @@
 #include <helper_gl.h>
 #include <GL/freeglut.h>
 #include <shader.h>
+#include <helper_timer.h>
+#include <windows.h>
 
-class Graphics 
+#define MAX(a,b) ((a > b) ? a : b)
+
+#define MAX_EPSILON_ERROR 10.0f
+#define THRESHOLD          0.30f
+#define REFRESH_DELAY     10 //ms
+
+const unsigned int window_width = 512;
+const unsigned int window_height = 512;
+
+class Graphics
 {
+
 public:
 	bool initialize(int *argc, char **argv);
 	void drawCircle(float2 center, float r, int num_segments);
-	void createGLStructures(GLuint *vbo, GLuint *VAO); 
-	void saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int numberOfBoids); 
-	void loadBoidsVertices(GLuint * vbo); 
-	void loadBoidsColor(GLuint * vbo); 
-	void loadBoidsPosition(GLuint * vbo, GLuint * translationsVBO, float2 * positions, int numberOfBoids); 
-	void allowInstancing(); 
+	void createGLStructures(GLuint *vbo);
+	void saveBoidsRenderingData(GLuint * vbo, float* boidVertices, int numberOfBoids);
+	void loadBoidsVertices(GLuint * vbo);
+	void loadBoidsColor(GLuint * vbo);
+	void loadBoidsPosition(GLuint * vbo, GLuint * translationsVBO, float2 * positions, int numberOfBoids);
+	void allowInstancing();
 	void drawObstacles(int numberOfObstacles, float2 * obstacleCenters, float * obstacleRadii);
-	void drawBoids(int numberOfBoids, GLuint * translationsVBO, float2 * positions); 
+	void drawBoids(int numberOfBoids, GLuint * translationsVBO, float2 * positions);
+	void computeFPS();
+	void startOfFrame();
+	void endOfFrame();
 
 	const char *windowTitle = "CUDA_Flocking";
 
+private:
+	Shader* shPointer;
+	int fpsCount;        // FPS count for averaging
+	int fpsLimit;        // FPS limit for sampling
+	unsigned int frameCount;
+	float avgFPS;
+	StopWatchInterface *timer;
+	unsigned int VAO;
 
-private: 
-	const unsigned int window_width = 512;
-	const unsigned int window_height = 512;
-	Shader* shPointer; 
+
 };
 
 #endif

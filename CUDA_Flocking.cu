@@ -23,7 +23,6 @@ void startApplication(int argc, char **argv)
 	pArgc = &argc;
 	pArgv = argv;
 	printf("%s starting...\n", graphics.windowTitle);
-	sdkCreateTimer(&timer);
 	graphics.initialize(&argc, argv);
 	registerGlutCallbacks();
 
@@ -40,6 +39,21 @@ void startApplication(int argc, char **argv)
 	prepareGraphicsToRenderBoids(&vbo);
 }
 
+void timerEvent(int value)
+{
+	if (glutGetWindow())
+	{
+		glutPostRedisplay();
+		glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
+	}
+}
+
+
+void cleanup()
+{
+
+}
+
 void registerGlutCallbacks()
 {
 	glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
@@ -49,6 +63,8 @@ void registerGlutCallbacks()
 	glutCloseFunc(cleanup);
 	printf("registered glut callbacks\n");
 }
+
+
 
 void preparePositionsAndVelocitiesArray()
 {
@@ -206,7 +222,7 @@ void prepareCellsCUDADataStructures()
 
 void prepareGraphicsToRenderBoids(GLuint *vbo)
 {
-	graphics.createGLStructures(vbo, &VAO);
+	graphics.createGLStructures(vbo);
 	printf(" graphics->createdGLstructures\n");
 
 	graphics.saveBoidsRenderingData(vbo, boidVertices, 15);
@@ -221,27 +237,13 @@ void prepareGraphicsToRenderBoids(GLuint *vbo)
 	printf("prepared graphics to rendering\n");
 }
 
-void startOfFrame()
-{
-	sdkStartTimer(&timer);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glBindVertexArray(VAO);
-}
-
-void endOfFrame()
-{
-	glutSwapBuffers();
-	sdkStopTimer(&timer);
-	computeFPS();
-}
-
 void display()
 {
-	startOfFrame();
+	graphics.startOfFrame();
 	graphics.drawObstacles(numberOfObstacles, obstacleCenters, obstacleRadii);
 	calculateBoidsPositions();
 	graphics.drawBoids(numberOfBoids, &translationsVBO, positions);
-	endOfFrame();
+	graphics.endOfFrame();
 }
 
 void calculateBoidsPositions()
@@ -290,48 +292,12 @@ void freeCUDADataStructures()
 	cudaFree(dev_neighbours);
 }
 
-void computeFPS()
-{
-	frameCount++;
-	fpsCount++;
-	if (fpsCount == fpsLimit)
-	{
-		avgFPS = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-		fpsCount = 0;
-		fpsLimit = (int)MAX(avgFPS, 1.f);
-
-		sdkResetTimer(&timer);
-	}
-	char fps[256];
-	sprintf(fps, "CUDA Flock: %3.1f fps (Max 100Hz)", avgFPS);
-	glutSetWindowTitle(fps);
-}
-
 void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
 {
 	glBindBuffer(1, *vbo);
 	glDeleteBuffers(1, vbo);
 
 	*vbo = 0;
-}
-
-void timerEvent(int value)
-{
-	if (glutGetWindow())
-	{
-		glutPostRedisplay();
-		glutTimerFunc(REFRESH_DELAY, timerEvent, 0);
-	}
-}
-
-void cleanup()
-{
-	sdkDeleteTimer(&timer);
-
-	if (vbo)
-	{
-		deleteVBO(&vbo, cuda_vbo_resource);
-	}
 }
 
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
@@ -359,6 +325,7 @@ void mouse(int button, int state, int x, int y)
 	mouse_old_x = x;
 	mouse_old_y = y;
 }
+
 
 void sendFlockToMouseClick(int x, int y)
 {
